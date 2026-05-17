@@ -653,11 +653,6 @@ def bus_status():
                 "current_stop": None,
                 "next_stop": None,
                 "stops": render_stop_states_by_progress(route_stops, None, False),
-                "debug": {
-                    "active_from": route_config.get("active_from"),
-                    "active_to": route_config.get("active_to"),
-                    "route_progress": ROUTE_PROGRESS,
-                },
                 "updated_at": datetime.now().strftime("%H:%M:%S"),
             }
 
@@ -701,13 +696,6 @@ def bus_status():
             "current_stop": status_info.get("current_stop"),
             "next_stop": status_info.get("next_stop"),
             "stops": rendered_stops,
-            "debug": {
-                "zone_id_map": zone_id_map,
-                "zones_by_unit_raw": zones_by_unit_raw,
-                "current_zone_pairs": current_zone_pairs,
-                "route_progress": progress,
-                "memory_progress": ROUTE_PROGRESS,
-            },
             "updated_at": datetime.now().strftime("%H:%M:%S"),
         }
 
