@@ -1,0 +1,13 @@
+[Unit]
+Description=Bus Live Wialon FastAPI
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/bus-live-wialon
+EnvironmentFile=/opt/bus-live-wialon/.env
+ExecStart=/opt/bus-live-wialon/.venv/bin/uvicorn app:app --host 127.0.0.1 --port 8015
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

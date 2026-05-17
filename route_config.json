@@ -1,0 +1,94 @@
+{
+  "route_name": "Утренний маршрут",
+  "direction": "morning",
+  "timezone": "Europe/Istanbul",
+  "refresh_seconds": 10,
+  "delay_warning_minutes": 3,
+  "delay_critical_minutes": 7,
+  "eta_speed_kmh": 60,
+  "active_from": "07:00",
+  "active_to": "08:30",
+  "tracked_bus": {
+    "unit_id": 601466760,
+    "name": "33S8151(механизация)"
+  },
+  "stops": [
+    {
+      "order": 1,
+      "name": "Vadi Market",
+      "planned_time": "07:20",
+      "zone_name": "Vadi Market / Вади Маркет",
+      "resource_id": 600894911,
+      "resource_name": "tsmbus",
+      "zone_id": 73,
+      "lat": 36.38609,
+      "lon": 33.940233
+    },
+    {
+      "order": 2,
+      "name": "Unlu Market",
+      "planned_time": "07:25",
+      "zone_name": "Ünlü market / Унлю Маркет",
+      "resource_id": 600894911,
+      "resource_name": "tsmbus",
+      "zone_id": 69,
+      "lat": 36.382771,
+      "lon": 33.931221
+    },
+    {
+      "order": 3,
+      "name": "Stadyum / Стадион",
+      "planned_time": "07:28",
+      "zone_name": "Stadyum / Стадион",
+      "resource_id": 600894911,
+      "resource_name": "tsmbus",
+      "zone_id": 56,
+      "lat": 36.381571,
+      "lon": 33.938258
+    },
+    {
+      "order": 4,
+      "name": "Kelebek",
+      "planned_time": "07:29",
+      "zone_name": "Kelebek mobiliye / Келебек мебель",
+      "resource_id": 600894911,
+      "resource_name": "tsmbus",
+      "zone_id": 34,
+      "lat": 36.379678,
+      "lon": 33.937647
+    },
+    {
+      "order": 5,
+      "name": "Ekomini / Экомини",
+      "planned_time": "07:44",
+      "zone_name": "Ekomini / Экомини",
+      "resource_id": 600894911,
+      "resource_name": "tsmbus",
+      "zone_id": 23,
+      "lat": 36.322152,
+      "lon": 33.883009
+    },
+    {
+      "order": 6,
+      "name": "Ziraat Bankası / Банк Зираат",
+      "planned_time": "07:46",
+      "zone_name": "Ziraat bankası / Банк зираат",
+      "resource_id": 600894911,
+      "resource_name": "tsmbus",
+      "zone_id": 66,
+      "lat": 36.318445,
+      "lon": 33.877798
+    },
+    {
+      "order": 7,
+      "name": "Botanic site",
+      "planned_time": "07:48",
+      "zone_name": "Botanic site",
+      "resource_id": 600894911,
+      "resource_name": "tsmbus",
+      "zone_id": 74,
+      "lat": 36.317599,
+      "lon": 33.875546
+    }
+  ]
+}

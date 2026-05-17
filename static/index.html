@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Автобус онлайн</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <link rel="preconnect" href="https://unpkg.com">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="hero">
+      <div>
+        <div class="eyebrow">Автобус онлайн</div>
+        <h1 id="routeName">Маршрут</h1>
+        <p id="busName">Загрузка...</p>
+      </div>
+
+      <div id="statusBadge" class="status-badge neutral">Загрузка</div>
+    </header>
+
+    <section class="summary-grid">
+      <div class="summary-card">
+        <div class="label">Текущая остановка</div>
+        <div id="currentStop" class="value">—</div>
+      </div>
+
+      <div class="summary-card">
+        <div class="label">Следующая остановка</div>
+        <div id="nextStop" class="value">—</div>
+      </div>
+
+      <div class="summary-card">
+        <div class="label">Прогноз прибытия</div>
+        <div id="etaText" class="value">—</div>
+      </div>
+    </section>
+
+    <main class="content">
+      <section class="panel schedule-panel">
+        <div class="panel-title">
+          <h2>Расписание</h2>
+          <span id="routeDirection">morning</span>
+        </div>
+
+        <div id="schedule" class="timeline"></div>
+      </section>
+
+      <section class="panel map-panel">
+        <div class="panel-title">
+          <h2>Карта</h2>
+          <span id="speedText">— км/ч</span>
+        </div>
+
+        <div id="map"></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>
