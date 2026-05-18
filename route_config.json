@@ -10,7 +10,7 @@
   "eta_speed_kmh": 60,
   "stop_match_radius_meters": 100,
   "stop_hit_grace_seconds": 10,
-  "active_from": "07:00",
+  "active_from": "07:10",
   "active_to": "08:30",
   "tracked_bus": {
     "unit_id": 601466760,
