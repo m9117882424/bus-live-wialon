@@ -13,28 +13,34 @@
 <body>
   <div class="page">
     <header class="hero">
-      <div>
-        <div class="eyebrow">Servis online</div>
+      <div class="hero-main">
+        <div id="eyebrow" class="eyebrow">Servis online</div>
         <h1 id="routeName">Güzergah</h1>
         <p id="busName">Yükleniyor...</p>
       </div>
 
-      <div id="statusBadge" class="status-badge neutral">Yükleniyor</div>
+      <div class="hero-actions">
+        <div class="lang-switcher" aria-label="Language switcher">
+          <button id="langRu" class="lang-btn" type="button">RU</button>
+          <button id="langTr" class="lang-btn active" type="button">TR</button>
+        </div>
+        <div id="statusBadge" class="status-badge neutral">Yükleniyor</div>
+      </div>
     </header>
 
     <section class="summary-grid">
       <div class="summary-card">
-        <div class="label">Mevcut durak</div>
+        <div id="currentStopLabel" class="label">Mevcut durak</div>
         <div id="currentStop" class="value">—</div>
       </div>
 
       <div class="summary-card">
-        <div class="label">Sonraki durak</div>
+        <div id="nextStopLabel" class="label">Sonraki durak</div>
         <div id="nextStop" class="value">—</div>
       </div>
 
       <div class="summary-card">
-        <div class="label">Tahmini varış</div>
+        <div id="etaLabel" class="label">Tahmini varış</div>
         <div id="etaText" class="value">—</div>
       </div>
     </section>
@@ -42,7 +48,7 @@
     <main class="content">
       <section class="panel schedule-panel">
         <div class="panel-title">
-          <h2>Saatler</h2>
+          <h2 id="scheduleTitle">Saatler</h2>
           <span id="routeDirection">Sabah</span>
         </div>
 
@@ -51,7 +57,7 @@
 
       <section class="panel map-panel">
         <div class="panel-title">
-          <h2>Harita</h2>
+          <h2 id="mapTitle">Harita</h2>
           <span id="speedText">— km/sa</span>
         </div>
 
