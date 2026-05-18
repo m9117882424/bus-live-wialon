@@ -3,6 +3,137 @@ let busMarker = null;
 let stopMarkers = [];
 let routeLine = null;
 let firstMapFitDone = false;
+let latestData = null;
+
+const LANG_KEY = "bus_live_lang";
+const DEFAULT_LANG = "tr";
+
+const i18n = {
+  tr: {
+    pageTitle: "Servis Takibi",
+    eyebrow: "Servis online",
+    routeFallback: "Güzergah",
+    loading: "Yükleniyor...",
+    loadingShort: "Yükleniyor",
+    currentStopLabel: "Mevcut durak",
+    nextStopLabel: "Sonraki durak",
+    etaLabel: "Tahmini varış",
+    scheduleTitle: "Saatler",
+    mapTitle: "Harita",
+    morning: "Sabah",
+    evening: "Akşam",
+    unit: "Unit",
+    speedUnit: "km/sa",
+    speedLabel: "Hız",
+    checkSettings: "Ayarları kontrol edin",
+    error: "Hata",
+    loadingError: "Yükleme hatası",
+    ok: "Zamanında",
+    warning: "Kısa gecikme",
+    critical: "Gecikiyor",
+    moving: "Servis yolda",
+    inactive: "Güzergah şu anda aktif değil",
+    inactiveShort: "Güzergah aktif değil",
+    finished: "Güzergah tamamlandı",
+    noRoute: "Güzergah ayarlanmamış",
+    onRoute: "Yolda",
+    finish: "Bitiş",
+    plan: "plan",
+    onTime: "zamanında",
+    minute: "dk"
+  },
+  ru: {
+    pageTitle: "Автобус онлайн",
+    eyebrow: "Автобус онлайн",
+    routeFallback: "Маршрут",
+    loading: "Загрузка...",
+    loadingShort: "Загрузка",
+    currentStopLabel: "Текущая остановка",
+    nextStopLabel: "Следующая остановка",
+    etaLabel: "Прогноз прибытия",
+    scheduleTitle: "Расписание",
+    mapTitle: "Карта",
+    morning: "Утро",
+    evening: "Вечер",
+    unit: "Unit",
+    speedUnit: "км/ч",
+    speedLabel: "Скорость",
+    checkSettings: "Проверь настройки",
+    error: "Ошибка",
+    loadingError: "Ошибка загрузки",
+    ok: "По расписанию",
+    warning: "Небольшое опоздание",
+    critical: "Опаздывает",
+    moving: "Автобус в пути",
+    inactive: "Маршрут сейчас не активен",
+    inactiveShort: "Маршрут не активен",
+    finished: "Маршрут завершён",
+    noRoute: "Маршрут не настроен",
+    onRoute: "В пути",
+    finish: "Финиш",
+    plan: "план",
+    onTime: "по расписанию",
+    minute: "мин"
+  }
+};
+
+function getLang() {
+  const saved = localStorage.getItem(LANG_KEY);
+  return saved === "ru" || saved === "tr" ? saved : DEFAULT_LANG;
+}
+
+function setLang(lang) {
+  if (lang !== "ru" && lang !== "tr") return;
+  localStorage.setItem(LANG_KEY, lang);
+  applyStaticTranslations();
+  if (latestData) renderData(latestData);
+}
+
+function t(key) {
+  return i18n[getLang()][key] || i18n[DEFAULT_LANG][key] || key;
+}
+
+function applyStaticTranslations() {
+  const lang = getLang();
+  document.documentElement.lang = lang;
+  document.title = t("pageTitle");
+
+  const elements = {
+    eyebrow: "eyebrow",
+    currentStopLabel: "currentStopLabel",
+    nextStopLabel: "nextStopLabel",
+    etaLabel: "etaLabel",
+    scheduleTitle: "scheduleTitle",
+    mapTitle: "mapTitle"
+  };
+
+  Object.entries(elements).forEach(([id, key]) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = t(key);
+  });
+
+  const langRu = document.getElementById("langRu");
+  const langTr = document.getElementById("langTr");
+
+  if (langRu) langRu.classList.toggle("active", lang === "ru");
+  if (langTr) langTr.classList.toggle("active", lang === "tr");
+}
+
+function routeNameForLang(data) {
+  const lang = getLang();
+  if (lang === "ru") return data.route_name_ru || data.route_name || t("routeFallback");
+  return data.route_name_tr || data.route_name || t("routeFallback");
+}
+
+function initLanguageSwitcher() {
+  const langRu = document.getElementById("langRu");
+  const langTr = document.getElementById("langTr");
+
+  if (langRu) langRu.addEventListener("click", () => setLang("ru"));
+  if (langTr) langTr.addEventListener("click", () => setLang("tr"));
+
+  applyStaticTranslations();
+}
 
 function initMap() {
   map = L.map("map").setView([36.36, 33.91], 12);
@@ -23,29 +154,29 @@ function statusClass(status) {
   return "neutral";
 }
 
-function statusTextTr(data) {
-  if (data.status === "ok") return "Zamanında";
-  if (data.status === "warning") return `Kısa gecikme: +${data.delay_minutes || 0} dk`;
-  if (data.status === "critical") return `Gecikiyor: +${data.delay_minutes || 0} dk`;
-  if (data.status === "moving") return "Servis yolda";
-  if (data.status === "inactive") return "Güzergah şu anda aktif değil";
-  if (data.status === "finished") return "Güzergah tamamlandı";
-  if (data.status === "no_route") return "Güzergah ayarlanmamış";
+function statusText(data) {
+  if (data.status === "ok") return t("ok");
+  if (data.status === "warning") return `${t("warning")}: +${data.delay_minutes || 0} ${t("minute")}`;
+  if (data.status === "critical") return `${t("critical")}: +${data.delay_minutes || 0} ${t("minute")}`;
+  if (data.status === "moving") return t("moving");
+  if (data.status === "inactive") return t("inactive");
+  if (data.status === "finished") return t("finished");
+  if (data.status === "no_route") return t("noRoute");
   return data.status_text || "—";
 }
 
-function directionTextTr(direction) {
-  if (direction === "morning") return "Sabah";
-  if (direction === "evening") return "Akşam";
+function directionText(direction) {
+  if (direction === "morning") return t("morning");
+  if (direction === "evening") return t("evening");
   return direction || "";
 }
 
-function etaDelayTextTr(eta) {
+function etaDelayText(eta) {
   if (!eta) return "—";
   const delay = Number(eta.eta_delay_minutes || 0);
-  if (delay > 0) return `+${delay} dk`;
-  if (delay < 0) return `${delay} dk`;
-  return "zamanında";
+  if (delay > 0) return `+${delay} ${t("minute")}`;
+  if (delay < 0) return `${delay} ${t("minute")}`;
+  return t("onTime");
 }
 
 function stopIcon(state) {
@@ -147,7 +278,7 @@ function renderMap(data) {
       busMarker.setLatLng(latlng);
     }
 
-    busMarker.bindPopup(`🚌 ${data.bus.name}<br>Hız: ${pos.speed || 0} km/sa`);
+    busMarker.bindPopup(`🚌 ${data.bus.name}<br>${t("speedLabel")}: ${pos.speed || 0} ${t("speedUnit")}`);
     points.push(latlng);
   }
 
@@ -168,68 +299,73 @@ function renderEta(data) {
   }
 
   if (data.eta) {
-    etaText.textContent = `${data.eta.eta_time} · ${etaDelayTextTr(data.eta)}`;
+    etaText.textContent = `${data.eta.eta_time} · ${etaDelayText(data.eta)}`;
   } else {
     etaText.textContent = "—";
   }
+}
+
+function renderData(data) {
+  latestData = data;
+
+  if (!data.ok) {
+    document.getElementById("routeName").textContent = data.route_name || t("routeFallback");
+    document.getElementById("busName").textContent = data.error || t("error");
+    document.getElementById("statusBadge").textContent = t("checkSettings");
+    document.getElementById("statusBadge").className = "status-badge critical";
+    renderSchedule(data.stops || []);
+    renderEta(data);
+    return;
+  }
+
+  document.getElementById("routeName").textContent = routeNameForLang(data);
+  document.getElementById("routeDirection").textContent = directionText(data.direction);
+  document.getElementById("busName").textContent = data.bus.name || `${t("unit")} ${data.bus.unit_id}`;
+
+  const badge = document.getElementById("statusBadge");
+  badge.textContent = statusText(data);
+  badge.className = `status-badge ${statusClass(data.status)}`;
+
+  document.getElementById("currentStop").textContent =
+    data.current_stop
+      ? data.current_stop.name
+      : data.status === "inactive"
+        ? t("inactiveShort")
+        : t("onRoute");
+
+  document.getElementById("nextStop").textContent =
+    data.next_stop
+      ? `${data.next_stop.name} · ${t("plan")} ${data.next_stop.planned_time}`
+      : data.status === "inactive"
+        ? t("inactiveShort")
+        : t("finish");
+
+  renderEta(data);
+
+  const speed = data.bus.last_position && data.bus.last_position.speed;
+  document.getElementById("speedText").textContent =
+    speed !== null && speed !== undefined ? `${speed} ${t("speedUnit")}` : `— ${t("speedUnit")}`;
+
+  renderSchedule(data.stops || []);
+  renderMap(data);
 }
 
 async function loadStatus() {
   try {
     const response = await fetch("/api/bus-status");
     const data = await response.json();
-
-    if (!data.ok) {
-      document.getElementById("routeName").textContent = data.route_name || "Güzergah";
-      document.getElementById("busName").textContent = data.error || "Hata";
-      document.getElementById("statusBadge").textContent = "Ayarları kontrol edin";
-      document.getElementById("statusBadge").className = "status-badge critical";
-      renderSchedule(data.stops || []);
-      renderEta(data);
-      setTimeout(loadStatus, 10000);
-      return;
-    }
-
-    document.getElementById("routeName").textContent = data.route_name || "Güzergah";
-    document.getElementById("routeDirection").textContent = directionTextTr(data.direction);
-    document.getElementById("busName").textContent = data.bus.name || `Unit ${data.bus.unit_id}`;
-
-    const badge = document.getElementById("statusBadge");
-    badge.textContent = statusTextTr(data);
-    badge.className = `status-badge ${statusClass(data.status)}`;
-
-    document.getElementById("currentStop").textContent =
-      data.current_stop
-        ? data.current_stop.name
-        : data.status === "inactive"
-          ? "Güzergah aktif değil"
-          : "Yolda";
-
-    document.getElementById("nextStop").textContent =
-      data.next_stop
-        ? `${data.next_stop.name} · plan ${data.next_stop.planned_time}`
-        : data.status === "inactive"
-          ? "Güzergah aktif değil"
-          : "Bitiş";
-
-    renderEta(data);
-
-    const speed = data.bus.last_position && data.bus.last_position.speed;
-    document.getElementById("speedText").textContent =
-      speed !== null && speed !== undefined ? `${speed} km/sa` : "— km/sa";
-
-    renderSchedule(data.stops || []);
-    renderMap(data);
+    renderData(data);
 
     const refresh = Number(data.refresh_seconds || 10) * 1000;
     setTimeout(loadStatus, refresh);
 
   } catch (error) {
-    document.getElementById("statusBadge").textContent = "Yükleme hatası";
+    document.getElementById("statusBadge").textContent = t("loadingError");
     document.getElementById("statusBadge").className = "status-badge critical";
     setTimeout(loadStatus, 10000);
   }
 }
 
+initLanguageSwitcher();
 initMap();
 loadStatus();
