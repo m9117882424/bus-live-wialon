@@ -474,8 +474,9 @@ def update_ordered_progress(
 ) -> Dict[str, Any]:
     """
     Ordered progress with skip-forward rule:
-    - Before the first stop is visited, ONLY stop #1 can start the route.
-    - After stop #1 is visited, the bus may jump to any later stop.
+    - The route can start from any detected stop.
+    - If it starts from a later stop, all previous stops are marked as passed.
+    - After start, the bus may jump to any later stop.
     - If it jumps forward, all skipped intermediate stops are marked as passed.
     - It never moves backward.
     - No DB. Progress is kept in memory for the current day/process.
@@ -497,15 +498,17 @@ def update_ordered_progress(
     ignored_zone_pairs = list(current_zone_pairs)
 
     if last_passed < 0:
-        # Route has not started yet. Only first stop can start it.
-        if 0 in hit_indices:
-            current_stop_index = 0
-            last_passed = 0
-            ROUTE_PROGRESS["last_passed_index"] = 0
-            ROUTE_PROGRESS["current_index"] = 0
+        # Route has not started yet. Start from any detected stop.
+        if hit_indices:
+            current_stop_index = max(hit_indices)
+            last_passed = current_stop_index
+            ROUTE_PROGRESS["last_passed_index"] = last_passed
+            ROUTE_PROGRESS["current_index"] = current_stop_index
+
+            accepted_pair = get_stop_zone_pair(route_stops[current_stop_index])
             ignored_zone_pairs = [
                 pair for pair in current_zone_pairs
-                if pair != get_stop_zone_pair(route_stops[0])
+                if pair != accepted_pair
             ]
         else:
             ROUTE_PROGRESS["current_index"] = None
