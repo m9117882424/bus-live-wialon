@@ -36,8 +36,9 @@
       "resource_id": 600894911,
       "resource_name": "tsmbus",
       "zone_id": 41,
-      "lat": 36.384626,
-      "lon": 33.93738
+      "lat": 36.385199,
+      "lon": 33.937082,
+      "radius_meters": 30
     },
     {
       "order": 3,
