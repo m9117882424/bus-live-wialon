@@ -29,6 +29,7 @@ ROUTE_PROGRESS = {
     "date": None,
     "last_passed_index": -1,
     "current_index": None,
+    "recent_hits": {},
 }
 
 
@@ -169,10 +170,12 @@ def reset_progress_if_needed(route_active: bool) -> None:
         ROUTE_PROGRESS["date"] = today_str
         ROUTE_PROGRESS["last_passed_index"] = -1
         ROUTE_PROGRESS["current_index"] = None
+        ROUTE_PROGRESS["recent_hits"] = {}
 
     if not route_active:
         ROUTE_PROGRESS["last_passed_index"] = -1
         ROUTE_PROGRESS["current_index"] = None
+        ROUTE_PROGRESS["recent_hits"] = {}
 
 
 def normalize_text(value: str) -> str:
@@ -245,11 +248,11 @@ def build_eta_info(
     eta_delay_minutes = int((eta_dt - planned_dt).total_seconds() // 60)
 
     if eta_delay_minutes > 0:
-        delay_text = f"+{eta_delay_minutes} мин"
+        delay_text = f"+{eta_delay_minutes} dk"
     elif eta_delay_minutes < 0:
-        delay_text = f"{eta_delay_minutes} мин"
+        delay_text = f"{eta_delay_minutes} dk"
     else:
-        delay_text = "по расписанию"
+        delay_text = "zamanında"
 
     return {
         "speed_kmh": speed_kmh,
@@ -363,6 +366,39 @@ def get_stop_zone_pair(stop: Dict[str, Any]) -> Tuple[Optional[int], Optional[in
     return stop.get("resource_id"), stop.get("zone_id")
 
 
+def get_distance_hit_indices(
+    route_stops: List[Dict[str, Any]],
+    bus_position: Dict[str, Any],
+    radius_meters: float,
+) -> List[int]:
+    bus_lat = bus_position.get("y")
+    bus_lon = bus_position.get("x")
+
+    if bus_lat is None or bus_lon is None:
+        return []
+
+    hit_indices: List[int] = []
+
+    for idx, stop in enumerate(route_stops):
+        stop_lat = stop.get("lat")
+        stop_lon = stop.get("lon")
+
+        if stop_lat is None or stop_lon is None:
+            continue
+
+        distance_m = haversine_km(
+            float(bus_lat),
+            float(bus_lon),
+            float(stop_lat),
+            float(stop_lon),
+        ) * 1000
+
+        if distance_m <= radius_meters:
+            hit_indices.append(idx)
+
+    return hit_indices
+
+
 def get_hit_stop_indices(
     route_stops: List[Dict[str, Any]],
     current_zone_pairs: List[Tuple[int, int]],
@@ -376,6 +412,62 @@ def get_hit_stop_indices(
     return hit_indices
 
 
+def build_effective_zone_pairs(
+    route_config: Dict[str, Any],
+    route_stops: List[Dict[str, Any]],
+    bus_position: Dict[str, Any],
+    wialon_zone_pairs: List[Tuple[int, int]],
+) -> List[Tuple[int, int]]:
+    """
+    Stop detection is based on two signals:
+    1. Wialon geozone hit, if available.
+    2. Distance from bus coordinates to stop coordinates.
+
+    The distance signal is treated as a stop hit when the bus is within
+    stop_match_radius_meters. A hit is kept active for stop_hit_grace_seconds
+    so that a short GPS/API polling gap does not lose the stop event.
+    """
+    radius_meters = float(route_config.get("stop_match_radius_meters", 100))
+    grace_seconds = float(route_config.get("stop_hit_grace_seconds", 10))
+    now_ts = time.time()
+
+    instant_hit_indices = set(get_hit_stop_indices(route_stops, wialon_zone_pairs))
+    instant_hit_indices.update(get_distance_hit_indices(route_stops, bus_position, radius_meters))
+
+    recent_hits = ROUTE_PROGRESS.setdefault("recent_hits", {})
+
+    for idx in instant_hit_indices:
+        recent_hits[str(idx)] = now_ts
+
+    effective_indices = set()
+    expired_keys = []
+
+    for idx_str, hit_ts in recent_hits.items():
+        try:
+            idx = int(idx_str)
+            hit_ts_float = float(hit_ts)
+        except Exception:
+            expired_keys.append(idx_str)
+            continue
+
+        if now_ts - hit_ts_float <= grace_seconds:
+            effective_indices.add(idx)
+        else:
+            expired_keys.append(idx_str)
+
+    for key in expired_keys:
+        recent_hits.pop(key, None)
+
+    effective_pairs: List[Tuple[int, int]] = []
+    for idx in sorted(effective_indices):
+        if 0 <= idx < len(route_stops):
+            pair = get_stop_zone_pair(route_stops[idx])
+            if pair[0] is not None and pair[1] is not None:
+                effective_pairs.append(pair)
+
+    return effective_pairs
+
+
 def update_ordered_progress(
     route_stops: List[Dict[str, Any]],
     current_zone_pairs: List[Tuple[int, int]],
@@ -385,7 +477,6 @@ def update_ordered_progress(
     - Before the first stop is visited, ONLY stop #1 can start the route.
     - After stop #1 is visited, the bus may jump to any later stop.
     - If it jumps forward, all skipped intermediate stops are marked as passed.
-      Example: last_passed=0 and current zone is stop #3 => stops #2 and #3 become passed/current.
     - It never moves backward.
     - No DB. Progress is kept in memory for the current day/process.
     """
@@ -424,8 +515,6 @@ def update_ordered_progress(
         forward_hits = [idx for idx in hit_indices if idx > last_passed]
 
         if forward_hits:
-            # Use the farthest later stop if several zones are active simultaneously.
-            # This prevents getting stuck in overlapping geozones.
             current_stop_index = max(forward_hits)
             last_passed = current_stop_index
             ROUTE_PROGRESS["last_passed_index"] = last_passed
@@ -438,7 +527,6 @@ def update_ordered_progress(
             ]
 
         elif last_passed in hit_indices:
-            # Still in the latest accepted stop.
             current_stop_index = last_passed
             ROUTE_PROGRESS["current_index"] = current_stop_index
 
@@ -449,7 +537,6 @@ def update_ordered_progress(
             ]
 
         else:
-            # Between stops.
             ROUTE_PROGRESS["current_index"] = None
 
     next_stop_index = last_passed + 1
@@ -481,7 +568,7 @@ def calculate_status_by_progress(
     if not route_stops:
         return {
             "status": "no_route",
-            "status_text": "Нет остановок в конфиге",
+            "status_text": "Güzergah ayarlanmamış",
             "delay_minutes": None,
             "current_stop": None,
             "next_stop": None,
@@ -490,7 +577,7 @@ def calculate_status_by_progress(
     if finished:
         return {
             "status": "finished",
-            "status_text": "Маршрут завершён",
+            "status_text": "Güzergah tamamlandı",
             "delay_minutes": None,
             "current_stop": None,
             "next_stop": None,
@@ -503,13 +590,13 @@ def calculate_status_by_progress(
 
         if delay_minutes <= warning:
             status = "ok"
-            status_text = "По расписанию"
+            status_text = "Zamanında"
         elif delay_minutes <= critical:
             status = "warning"
-            status_text = f"Небольшое опоздание: +{delay_minutes} мин"
+            status_text = f"Kısa gecikme: +{delay_minutes} dk"
         else:
             status = "critical"
-            status_text = f"Опаздывает: +{delay_minutes} мин"
+            status_text = f"Gecikiyor: +{delay_minutes} dk"
 
         next_stop = None
         if current_stop_index + 1 < len(route_stops):
@@ -527,7 +614,7 @@ def calculate_status_by_progress(
 
     return {
         "status": "moving",
-        "status_text": "Автобус в пути",
+        "status_text": "Servis yolda",
         "delay_minutes": None,
         "current_stop": None,
         "next_stop": next_stop,
@@ -586,6 +673,7 @@ def reset_progress():
     ROUTE_PROGRESS["date"] = date.today().isoformat()
     ROUTE_PROGRESS["last_passed_index"] = -1
     ROUTE_PROGRESS["current_index"] = None
+    ROUTE_PROGRESS["recent_hits"] = {}
 
     return {
         "ok": True,
@@ -599,7 +687,7 @@ def bus_status():
     if not WIALON_TOKEN:
         return JSONResponse(
             status_code=500,
-            content={"ok": False, "error": "WIALON_TOKEN не задан в .env"},
+            content={"ok": False, "error": "WIALON_TOKEN is not set in .env"},
         )
 
     try:
@@ -613,7 +701,7 @@ def bus_status():
         if not bus:
             return {
                 "ok": False,
-                "error": "Автобус не найден. Укажи TRACKED_BUS_ID в .env или tracked_bus.unit_id в route_config.json.",
+                "error": "Servis bulunamadı. TRACKED_BUS_ID veya tracked_bus.unit_id kontrol edin.",
                 "route_name": route_config.get("route_name"),
                 "stops": render_stop_states_by_progress(route_stops, None, route_active),
             }
@@ -621,7 +709,7 @@ def bus_status():
         if bus.get("error") == "multiple_bus_matches":
             return {
                 "ok": False,
-                "error": "По названию найдено несколько автобусов. Укажи TRACKED_BUS_ID.",
+                "error": "Birden fazla servis bulundu. TRACKED_BUS_ID belirtin.",
                 "matches": bus.get("matches"),
             }
 
@@ -648,7 +736,7 @@ def bus_status():
                     },
                 },
                 "status": "inactive",
-                "status_text": "Маршрут сейчас не активен",
+                "status_text": "Güzergah şu anda aktif değil",
                 "delay_minutes": None,
                 "current_stop": None,
                 "next_stop": None,
@@ -662,8 +750,14 @@ def bus_status():
         if zone_id_map:
             zones_by_unit_raw = client.get_zones_by_unit(unit_id, zone_id_map)
 
-        current_zone_pairs = get_current_zone_ids(zones_by_unit_raw, unit_id)
-        progress = update_ordered_progress(route_stops, current_zone_pairs)
+        wialon_zone_pairs = get_current_zone_ids(zones_by_unit_raw, unit_id)
+        effective_zone_pairs = build_effective_zone_pairs(
+            route_config=route_config,
+            route_stops=route_stops,
+            bus_position=position,
+            wialon_zone_pairs=wialon_zone_pairs,
+        )
+        progress = update_ordered_progress(route_stops, effective_zone_pairs)
 
         status_info = calculate_status_by_progress(route_config, route_stops, progress)
         eta_info = build_eta_info(
