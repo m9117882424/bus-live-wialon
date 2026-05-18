@@ -23,8 +23,6 @@ TRACKED_BUS_NAME_ENV = os.getenv("TRACKED_BUS_NAME", "").strip()
 ROUTE_CONFIG_PATH = os.getenv("ROUTE_CONFIG", "route_config.json")
 STATIC_DIR = "static"
 
-# In-memory daily progress.
-# No database. Resets automatically by date and outside active route window.
 ROUTE_PROGRESS = {
     "date": None,
     "last_passed_index": -1,
@@ -194,20 +192,16 @@ def normalize_text(value: str) -> str:
 
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     radius_km = 6371.0
-
     lat1_rad = math.radians(lat1)
     lon1_rad = math.radians(lon1)
     lat2_rad = math.radians(lat2)
     lon2_rad = math.radians(lon2)
-
     dlat = lat2_rad - lat1_rad
     dlon = lon2_rad - lon1_rad
-
     a = (
         math.sin(dlat / 2) ** 2
         + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(dlon / 2) ** 2
     )
-
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     return radius_km * c
 
@@ -222,7 +216,6 @@ def build_eta_info(
 
     bus_lat = bus_position.get("y")
     bus_lon = bus_position.get("x")
-
     stop_lat = next_stop.get("lat")
     stop_lon = next_stop.get("lon")
 
@@ -230,27 +223,19 @@ def build_eta_info(
         return None
 
     speed_kmh = float(route_config.get("eta_speed_kmh", 60))
-
     if speed_kmh <= 0:
         speed_kmh = 60
 
-    distance_km = haversine_km(
-        float(bus_lat),
-        float(bus_lon),
-        float(stop_lat),
-        float(stop_lon),
-    )
-
+    distance_km = haversine_km(float(bus_lat), float(bus_lon), float(stop_lat), float(stop_lon))
     eta_minutes = int(round((distance_km / speed_kmh) * 60))
     eta_dt = datetime.now() + timedelta(minutes=eta_minutes)
-
     planned_dt = parse_hhmm(next_stop["planned_time"])
     eta_delay_minutes = int((eta_dt - planned_dt).total_seconds() // 60)
 
     if eta_delay_minutes > 0:
-        delay_text = f"+{eta_delay_minutes} dk"
+        delay_text = f"gecikme: {abs(eta_delay_minutes)} dk"
     elif eta_delay_minutes < 0:
-        delay_text = f"{eta_delay_minutes} dk"
+        delay_text = f"erken: {abs(eta_delay_minutes)} dk"
     else:
         delay_text = "zamanında"
 
@@ -268,10 +253,8 @@ def build_eta_info(
 def get_config_bus_id(route_config: Dict[str, Any]) -> Optional[int]:
     tracked_bus = route_config.get("tracked_bus") or {}
     unit_id = tracked_bus.get("unit_id")
-
     if unit_id is None:
         return None
-
     try:
         return int(unit_id)
     except Exception:
@@ -280,7 +263,6 @@ def get_config_bus_id(route_config: Dict[str, Any]) -> Optional[int]:
 
 def find_tracked_bus(client: WialonClient, route_config: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     units = client.get_units()
-
     target_id: Optional[int] = None
 
     if TRACKED_BUS_ID_ENV:
@@ -303,24 +285,13 @@ def find_tracked_bus(client: WialonClient, route_config: Dict[str, Any]) -> Opti
     bus_name = TRACKED_BUS_NAME_ENV or ((route_config.get("tracked_bus") or {}).get("name") or "")
     if bus_name:
         needle = normalize_text(bus_name)
-        matches = [
-            unit for unit in units
-            if needle in normalize_text(str(unit.get("nm", "")))
-        ]
-
+        matches = [unit for unit in units if needle in normalize_text(str(unit.get("nm", "")))]
         if len(matches) == 1:
             return matches[0]
-
         if len(matches) > 1:
             return {
                 "error": "multiple_bus_matches",
-                "matches": [
-                    {
-                        "id": u.get("id"),
-                        "name": u.get("nm"),
-                    }
-                    for u in matches
-                ],
+                "matches": [{"id": u.get("id"), "name": u.get("nm")} for u in matches],
             }
 
     return None
@@ -328,37 +299,29 @@ def find_tracked_bus(client: WialonClient, route_config: Dict[str, Any]) -> Opti
 
 def build_zone_id_map(route_stops: List[Dict[str, Any]]) -> Dict[str, List[int]]:
     result: Dict[str, List[int]] = {}
-
     for stop in route_stops:
         resource_id = stop.get("resource_id")
         zone_id = stop.get("zone_id")
-
         if resource_id is None or zone_id is None:
             continue
-
         key = str(resource_id)
         result.setdefault(key, [])
-
         if int(zone_id) not in result[key]:
             result[key].append(int(zone_id))
-
     return result
 
 
 def get_current_zone_ids(zones_by_unit_response: Dict[str, Any], unit_id: int) -> List[Tuple[int, int]]:
     found: List[Tuple[int, int]] = []
-
     if not isinstance(zones_by_unit_response, dict):
         return found
 
     for resource_id_str, zones_dict in zones_by_unit_response.items():
         if not isinstance(zones_dict, dict):
             continue
-
         for zone_id_str, unit_ids in zones_dict.items():
             if isinstance(unit_ids, list) and unit_id in unit_ids:
                 found.append((int(resource_id_str), int(zone_id_str)))
-
     return found
 
 
@@ -373,29 +336,18 @@ def get_distance_hit_indices(
 ) -> List[int]:
     bus_lat = bus_position.get("y")
     bus_lon = bus_position.get("x")
-
     if bus_lat is None or bus_lon is None:
         return []
 
     hit_indices: List[int] = []
-
     for idx, stop in enumerate(route_stops):
         stop_lat = stop.get("lat")
         stop_lon = stop.get("lon")
-
         if stop_lat is None or stop_lon is None:
             continue
-
-        distance_m = haversine_km(
-            float(bus_lat),
-            float(bus_lon),
-            float(stop_lat),
-            float(stop_lon),
-        ) * 1000
-
+        distance_m = haversine_km(float(bus_lat), float(bus_lon), float(stop_lat), float(stop_lon)) * 1000
         if distance_m <= radius_meters:
             hit_indices.append(idx)
-
     return hit_indices
 
 
@@ -404,11 +356,9 @@ def get_hit_stop_indices(
     current_zone_pairs: List[Tuple[int, int]],
 ) -> List[int]:
     hit_indices: List[int] = []
-
     for idx, stop in enumerate(route_stops):
         if get_stop_zone_pair(stop) in current_zone_pairs:
             hit_indices.append(idx)
-
     return hit_indices
 
 
@@ -418,15 +368,6 @@ def build_effective_zone_pairs(
     bus_position: Dict[str, Any],
     wialon_zone_pairs: List[Tuple[int, int]],
 ) -> List[Tuple[int, int]]:
-    """
-    Stop detection is based on two signals:
-    1. Wialon geozone hit, if available.
-    2. Distance from bus coordinates to stop coordinates.
-
-    The distance signal is treated as a stop hit when the bus is within
-    stop_match_radius_meters. A hit is kept active for stop_hit_grace_seconds
-    so that a short GPS/API polling gap does not lose the stop event.
-    """
     radius_meters = float(route_config.get("stop_match_radius_meters", 100))
     grace_seconds = float(route_config.get("stop_hit_grace_seconds", 10))
     now_ts = time.time()
@@ -435,13 +376,11 @@ def build_effective_zone_pairs(
     instant_hit_indices.update(get_distance_hit_indices(route_stops, bus_position, radius_meters))
 
     recent_hits = ROUTE_PROGRESS.setdefault("recent_hits", {})
-
     for idx in instant_hit_indices:
         recent_hits[str(idx)] = now_ts
 
     effective_indices = set()
     expired_keys = []
-
     for idx_str, hit_ts in recent_hits.items():
         try:
             idx = int(idx_str)
@@ -449,7 +388,6 @@ def build_effective_zone_pairs(
         except Exception:
             expired_keys.append(idx_str)
             continue
-
         if now_ts - hit_ts_float <= grace_seconds:
             effective_indices.add(idx)
         else:
@@ -464,7 +402,6 @@ def build_effective_zone_pairs(
             pair = get_stop_zone_pair(route_stops[idx])
             if pair[0] is not None and pair[1] is not None:
                 effective_pairs.append(pair)
-
     return effective_pairs
 
 
@@ -472,15 +409,6 @@ def update_ordered_progress(
     route_stops: List[Dict[str, Any]],
     current_zone_pairs: List[Tuple[int, int]],
 ) -> Dict[str, Any]:
-    """
-    Ordered progress with skip-forward rule:
-    - The route can start from any detected stop.
-    - If it starts from a later stop, all previous stops are marked as passed.
-    - After start, the bus may jump to any later stop.
-    - If it jumps forward, all skipped intermediate stops are marked as passed.
-    - It never moves backward.
-    - No DB. Progress is kept in memory for the current day/process.
-    """
     if not route_stops:
         return {
             "current_stop_index": None,
@@ -493,52 +421,33 @@ def update_ordered_progress(
 
     last_passed = int(ROUTE_PROGRESS.get("last_passed_index", -1))
     hit_indices = get_hit_stop_indices(route_stops, current_zone_pairs)
-
     current_stop_index = None
     ignored_zone_pairs = list(current_zone_pairs)
 
     if last_passed < 0:
-        # Route has not started yet. Start from any detected stop.
         if hit_indices:
             current_stop_index = max(hit_indices)
             last_passed = current_stop_index
             ROUTE_PROGRESS["last_passed_index"] = last_passed
             ROUTE_PROGRESS["current_index"] = current_stop_index
-
             accepted_pair = get_stop_zone_pair(route_stops[current_stop_index])
-            ignored_zone_pairs = [
-                pair for pair in current_zone_pairs
-                if pair != accepted_pair
-            ]
+            ignored_zone_pairs = [pair for pair in current_zone_pairs if pair != accepted_pair]
         else:
             ROUTE_PROGRESS["current_index"] = None
-
     else:
-        # Route already started. Allow jump to any later stop.
         forward_hits = [idx for idx in hit_indices if idx > last_passed]
-
         if forward_hits:
             current_stop_index = max(forward_hits)
             last_passed = current_stop_index
             ROUTE_PROGRESS["last_passed_index"] = last_passed
             ROUTE_PROGRESS["current_index"] = current_stop_index
-
             accepted_pair = get_stop_zone_pair(route_stops[current_stop_index])
-            ignored_zone_pairs = [
-                pair for pair in current_zone_pairs
-                if pair != accepted_pair
-            ]
-
+            ignored_zone_pairs = [pair for pair in current_zone_pairs if pair != accepted_pair]
         elif last_passed in hit_indices:
             current_stop_index = last_passed
             ROUTE_PROGRESS["current_index"] = current_stop_index
-
             accepted_pair = get_stop_zone_pair(route_stops[current_stop_index])
-            ignored_zone_pairs = [
-                pair for pair in current_zone_pairs
-                if pair != accepted_pair
-            ]
-
+            ignored_zone_pairs = [pair for pair in current_zone_pairs if pair != accepted_pair]
         else:
             ROUTE_PROGRESS["current_index"] = None
 
@@ -563,28 +472,15 @@ def calculate_status_by_progress(
 ) -> Dict[str, Any]:
     warning = int(route_config.get("delay_warning_minutes", 3))
     critical = int(route_config.get("delay_critical_minutes", 7))
-
     current_stop_index = progress.get("current_stop_index")
     next_stop_index = progress.get("next_stop_index")
     finished = progress.get("finished", False)
 
     if not route_stops:
-        return {
-            "status": "no_route",
-            "status_text": "Güzergah ayarlanmamış",
-            "delay_minutes": None,
-            "current_stop": None,
-            "next_stop": None,
-        }
+        return {"status": "no_route", "status_text": "Güzergah ayarlanmamış", "delay_minutes": None, "current_stop": None, "next_stop": None}
 
     if finished:
-        return {
-            "status": "finished",
-            "status_text": "Güzergah tamamlandı",
-            "delay_minutes": None,
-            "current_stop": None,
-            "next_stop": None,
-        }
+        return {"status": "finished", "status_text": "Güzergah tamamlandı", "delay_minutes": None, "current_stop": None, "next_stop": None}
 
     if current_stop_index is not None:
         current_stop = route_stops[current_stop_index]
@@ -596,32 +492,16 @@ def calculate_status_by_progress(
             status_text = "Zamanında"
         elif delay_minutes <= critical:
             status = "warning"
-            status_text = f"Kısa gecikme: +{delay_minutes} dk"
+            status_text = f"Kısa gecikme: {abs(delay_minutes)} dk"
         else:
             status = "critical"
-            status_text = f"Gecikiyor: +{delay_minutes} dk"
+            status_text = f"Gecikme: {abs(delay_minutes)} dk"
 
-        next_stop = None
-        if current_stop_index + 1 < len(route_stops):
-            next_stop = route_stops[current_stop_index + 1]
-
-        return {
-            "status": status,
-            "status_text": status_text,
-            "delay_minutes": delay_minutes,
-            "current_stop": current_stop,
-            "next_stop": next_stop,
-        }
+        next_stop = route_stops[current_stop_index + 1] if current_stop_index + 1 < len(route_stops) else None
+        return {"status": status, "status_text": status_text, "delay_minutes": delay_minutes, "current_stop": current_stop, "next_stop": next_stop}
 
     next_stop = route_stops[next_stop_index] if next_stop_index is not None else None
-
-    return {
-        "status": "moving",
-        "status_text": "Servis yolda",
-        "delay_minutes": None,
-        "current_stop": None,
-        "next_stop": next_stop,
-    }
+    return {"status": "moving", "status_text": "Servis yolda", "delay_minutes": None, "current_stop": None, "next_stop": next_stop}
 
 
 def render_stop_states_by_progress(
@@ -629,29 +509,23 @@ def render_stop_states_by_progress(
     progress: Optional[Dict[str, Any]],
     route_active: bool = True,
 ) -> List[Dict[str, Any]]:
-    rendered = []
-
     if not route_active or progress is None:
         return [{**stop, "state": "pending"} for stop in route_stops]
 
     last_passed_index = int(progress.get("last_passed_index", -1))
     current_stop_index = progress.get("current_stop_index")
-
+    rendered = []
     for idx, stop in enumerate(route_stops):
         state = "pending"
-
         if current_stop_index is not None and idx == current_stop_index:
             state = "current"
         elif idx <= last_passed_index:
             state = "passed"
-
         rendered.append({**stop, "state": state})
-
     return rendered
 
 
 app = FastAPI(title="Bus Live Wialon MVP")
-
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 client = WialonClient(WIALON_HOST, WIALON_TOKEN)
 
@@ -677,21 +551,52 @@ def reset_progress():
     ROUTE_PROGRESS["last_passed_index"] = -1
     ROUTE_PROGRESS["current_index"] = None
     ROUTE_PROGRESS["recent_hits"] = {}
+    return {"ok": True, "message": "Route progress reset", "route_progress": ROUTE_PROGRESS}
 
-    return {
-        "ok": True,
-        "message": "Route progress reset",
-        "route_progress": ROUTE_PROGRESS,
-    }
+
+@app.post("/api/set-progress/{last_passed_index}")
+def set_progress(last_passed_index: int):
+    """
+    Manually set route progress by zero-based stop index.
+    Example: /api/set-progress/6 marks stops 1-7 as passed, so stop 8 is next.
+    """
+    try:
+        route_config = load_route_config()
+        route_stops = route_config.get("stops", [])
+        max_index = len(route_stops) - 1
+
+        if not route_stops:
+            return JSONResponse(status_code=400, content={"ok": False, "error": "No stops configured"})
+
+        if last_passed_index < -1:
+            last_passed_index = -1
+        if last_passed_index > max_index:
+            last_passed_index = max_index
+
+        ROUTE_PROGRESS["date"] = date.today().isoformat()
+        ROUTE_PROGRESS["last_passed_index"] = last_passed_index
+        ROUTE_PROGRESS["current_index"] = None
+        ROUTE_PROGRESS["recent_hits"] = {}
+
+        next_stop = route_stops[last_passed_index + 1] if last_passed_index + 1 < len(route_stops) else None
+
+        return {
+            "ok": True,
+            "message": "Route progress updated",
+            "last_passed_index": last_passed_index,
+            "last_passed_stop": route_stops[last_passed_index] if last_passed_index >= 0 else None,
+            "next_stop": next_stop,
+            "route_progress": ROUTE_PROGRESS,
+        }
+
+    except Exception as exc:
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(exc)})
 
 
 @app.get("/api/bus-status")
 def bus_status():
     if not WIALON_TOKEN:
-        return JSONResponse(
-            status_code=500,
-            content={"ok": False, "error": "WIALON_TOKEN is not set in .env"},
-        )
+        return JSONResponse(status_code=500, content={"ok": False, "error": "WIALON_TOKEN is not set in .env"})
 
     try:
         route_config = load_route_config()
@@ -700,21 +605,18 @@ def bus_status():
         reset_progress_if_needed(route_active)
 
         bus = find_tracked_bus(client, route_config)
-
         if not bus:
             return {
                 "ok": False,
                 "error": "Servis bulunamadı. TRACKED_BUS_ID veya tracked_bus.unit_id kontrol edin.",
                 "route_name": route_config.get("route_name"),
+                "route_name_ru": route_config.get("route_name_ru"),
+                "route_name_tr": route_config.get("route_name_tr"),
                 "stops": render_stop_states_by_progress(route_stops, None, route_active),
             }
 
         if bus.get("error") == "multiple_bus_matches":
-            return {
-                "ok": False,
-                "error": "Birden fazla servis bulundu. TRACKED_BUS_ID belirtin.",
-                "matches": bus.get("matches"),
-            }
+            return {"ok": False, "error": "Birden fazla servis bulundu. TRACKED_BUS_ID belirtin.", "matches": bus.get("matches")}
 
         unit_id = int(bus["id"])
         unit_name = bus.get("nm")
@@ -724,19 +626,15 @@ def bus_status():
             return {
                 "ok": True,
                 "route_name": route_config.get("route_name"),
+                "route_name_ru": route_config.get("route_name_ru"),
+                "route_name_tr": route_config.get("route_name_tr"),
                 "direction": route_config.get("direction"),
                 "refresh_seconds": route_config.get("refresh_seconds", 10),
                 "eta": None,
                 "bus": {
                     "unit_id": unit_id,
                     "name": unit_name,
-                    "last_position": {
-                        "lat": position.get("y"),
-                        "lon": position.get("x"),
-                        "speed": position.get("s"),
-                        "course": position.get("c"),
-                        "time": position.get("t"),
-                    },
+                    "last_position": {"lat": position.get("y"), "lon": position.get("x"), "speed": position.get("s"), "course": position.get("c"), "time": position.get("t")},
                 },
                 "status": "inactive",
                 "status_text": "Güzergah şu anda aktif değil",
@@ -748,44 +646,27 @@ def bus_status():
             }
 
         zone_id_map = build_zone_id_map(route_stops)
-        zones_by_unit_raw = {}
-
-        if zone_id_map:
-            zones_by_unit_raw = client.get_zones_by_unit(unit_id, zone_id_map)
-
+        zones_by_unit_raw = client.get_zones_by_unit(unit_id, zone_id_map) if zone_id_map else {}
         wialon_zone_pairs = get_current_zone_ids(zones_by_unit_raw, unit_id)
-        effective_zone_pairs = build_effective_zone_pairs(
-            route_config=route_config,
-            route_stops=route_stops,
-            bus_position=position,
-            wialon_zone_pairs=wialon_zone_pairs,
-        )
+        effective_zone_pairs = build_effective_zone_pairs(route_config, route_stops, position, wialon_zone_pairs)
         progress = update_ordered_progress(route_stops, effective_zone_pairs)
 
         status_info = calculate_status_by_progress(route_config, route_stops, progress)
-        eta_info = build_eta_info(
-            route_config=route_config,
-            bus_position=position,
-            next_stop=status_info.get("next_stop"),
-        )
+        eta_info = build_eta_info(route_config, position, status_info.get("next_stop"))
         rendered_stops = render_stop_states_by_progress(route_stops, progress, True)
 
         return {
             "ok": True,
             "route_name": route_config.get("route_name"),
+            "route_name_ru": route_config.get("route_name_ru"),
+            "route_name_tr": route_config.get("route_name_tr"),
             "direction": route_config.get("direction"),
             "refresh_seconds": route_config.get("refresh_seconds", 10),
             "eta": eta_info,
             "bus": {
                 "unit_id": unit_id,
                 "name": unit_name,
-                "last_position": {
-                    "lat": position.get("y"),
-                    "lon": position.get("x"),
-                    "speed": position.get("s"),
-                    "course": position.get("c"),
-                    "time": position.get("t"),
-                },
+                "last_position": {"lat": position.get("y"), "lon": position.get("x"), "speed": position.get("s"), "course": position.get("c"), "time": position.get("t")},
             },
             "status": status_info.get("status"),
             "status_text": status_info.get("status_text"),
@@ -797,13 +678,7 @@ def bus_status():
         }
 
     except Exception as exc:
-        return JSONResponse(
-            status_code=500,
-            content={
-                "ok": False,
-                "error": str(exc),
-            },
-        )
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(exc)})
 
 
 @app.get("/api/config")
