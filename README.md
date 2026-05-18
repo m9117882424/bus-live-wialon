@@ -2,13 +2,17 @@
 
 Лёгкая страница для отображения движения автобуса по маршруту на данных Wialon.
 
+## Скриншот
+
+![Bus Live Wialon dashboard](docs/dashboard-screenshot.svg)
+
 ## Возможности
 
 - FastAPI backend.
 - Leaflet + OpenStreetMap frontend.
 - Данные автобуса из Wialon.
 - Остановки из `route_config.json`.
-- Активное окно маршрута: `07:00–08:30`.
+- Активное окно маршрута: `07:10–08:30`.
 - Прогноз прибытия по скорости `eta_speed_kmh = 60`.
 - Маршрут стартует строго с первой остановки.
 - После первой остановки допускается пропуск промежуточных остановок: если автобус попал в более позднюю геозону, промежуточные отмечаются как посещённые.
@@ -53,12 +57,19 @@ GET  /api/health
 GET  /api/bus-status
 GET  /api/config
 POST /api/reset-progress
+POST /api/set-progress/{last_passed_index}
 ```
 
 Сброс прогресса маршрута:
 
 ```bash
 curl -X POST http://127.0.0.1:8015/api/reset-progress
+```
+
+Ручная установка прогресса, например отметить первые 8 остановок как пройденные:
+
+```bash
+curl -X POST http://127.0.0.1:8015/api/set-progress/7
 ```
 
 ## Деплой на сервер
