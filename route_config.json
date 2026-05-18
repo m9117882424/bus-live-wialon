@@ -93,6 +93,17 @@
       "zone_id": 74,
       "lat": 36.317599,
       "lon": 33.875546
+    },
+    {
+      "order": 8,
+      "name": "İNTENS / ИНТЕНС",
+      "planned_time": "08:30",
+      "zone_name": "İntens / Интенс",
+      "resource_id": 600894911,
+      "resource_name": "tsmbus",
+      "zone_id": 29,
+      "lat": 36.150577,
+      "lon": 33.545739
     }
   ]
 }
