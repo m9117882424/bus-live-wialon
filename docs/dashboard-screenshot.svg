@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1011" height="886" viewBox="0 0 1011 886" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="981" height="877" viewBox="0 0 981 877" role="img" aria-labelledby="title desc">
   <title id="title">Bus Live Wialon dashboard screenshot</title>
-  <desc id="desc">Preview of the bus route tracking dashboard with schedule cards, route status, language switcher and live map.</desc>
+  <desc id="desc">Preview of the updated bus route tracking dashboard with RU language, Carrefour market stop, route status and live map.</desc>
   <defs>
     <linearGradient id="hero" x1="0" x2="1" y1="0" y2="1">
       <stop offset="0" stop-color="#172033"/>
@@ -10,56 +10,73 @@
       <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#0f172a" flood-opacity="0.12"/>
     </filter>
     <style>
-      .bg{fill:#f4f7fb}.card{fill:#fff;filter:url(#shadow)}.muted{fill:#64748b;font:12px Arial}.text{fill:#0f172a;font:700 18px Arial}.title{fill:#fff;font:800 34px Arial}.white{fill:#fff}.smallwhite{fill:#dbeafe;font:12px Arial;letter-spacing:.12em}.bus{font:13px Arial;fill:#e5e7eb}.time{fill:#0f172a;font:800 16px Arial}.stop{fill:#f8fafc;stroke:#e5e7eb}.dot{fill:#e2e8f0}.mapgreen{fill:#a7d7a7}.mapblue{fill:#a8d6df}.road{stroke:#ef8a62;stroke-width:3;fill:none}.route{stroke:#3b82f6;stroke-width:2;stroke-dasharray:5 5;fill:none;opacity:.45}.pin{fill:#3b82f6}.buspin{fill:#0f766e;stroke:#fff;stroke-width:4}
+      .bg{fill:#f4f7fb}.card{fill:#fff;filter:url(#shadow)}.heroText{fill:#fff;font:800 34px Arial}.eyebrow{fill:#dbeafe;font:11px Arial;font-weight:700;letter-spacing:.12em}.bus{font:14px Arial;fill:#f1f5f9}.muted{fill:#475569;font:10px Arial}.label{fill:#475569;font:10px Arial}.text{fill:#020617;font:800 20px Arial}.panelTitle{fill:#020617;font:800 20px Arial}.time{fill:#0f172a;font:800 16px Arial}.stopName{fill:#020617;font:700 13px Arial}.zone{fill:#334155;font:9px Arial}.stop{fill:#f8fafc;stroke:#e5e7eb}.dot{fill:#e2e8f0}.mapWater{fill:#acdce5}.mapLand{fill:#eaf2e8}.mapForest{fill:#a7d7a1}.road{stroke:#ef8a62;stroke-width:2.2;fill:none}.grid{stroke:#ffffff;stroke-width:1;opacity:.65}.route{stroke:#3b82f6;stroke-width:1.6;stroke-dasharray:6 6;fill:none;opacity:.55}.pin{fill:#3b82f6}.buspin{fill:#0f766e;stroke:#fff;stroke-width:4}.mount{fill:#d97706;opacity:.65}.btn{fill:#f8fafc}.lang{font:700 8px Arial}.status{fill:#172033;font:800 13px Arial}
     </style>
   </defs>
-  <rect class="bg" width="1011" height="886"/>
 
-  <rect x="42" y="12" width="945" height="122" rx="22" fill="url(#hero)"/>
-  <text x="64" y="43" class="smallwhite">АВТОБУС ОНЛАЙН</text>
-  <text x="64" y="82" class="title">Утренний маршрут</text>
-  <text x="64" y="110" class="bus">33S8151(mekanizasyon/механизация)</text>
-  <rect x="654" y="53" width="64" height="37" rx="19" fill="#ffffff22"/>
-  <circle cx="672" cy="72" r="16" fill="#fff"/><text x="663" y="77" font-family="Arial" font-size="10" font-weight="700" fill="#0f766e">RU</text>
-  <text x="694" y="76" font-family="Arial" font-size="10" font-weight="700" fill="#e5e7eb">TR</text>
-  <rect x="727" y="53" width="238" height="40" rx="20" fill="#f8fafc"/>
-  <text x="743" y="78" font-family="Arial" font-size="14" font-weight="800" fill="#172033">Маршрут сейчас не активен</text>
+  <rect class="bg" width="981" height="877"/>
+
+  <rect x="24" y="15" width="944" height="122" rx="22" fill="url(#hero)"/>
+  <text x="47" y="46" class="eyebrow">АВТОБУС ОНЛАЙН</text>
+  <text x="47" y="84" class="heroText">Утренний маршрут</text>
+  <text x="47" y="110" class="bus">33S8151(mekanizasyon/механизация)</text>
+
+  <rect x="636" y="58" width="62" height="36" rx="18" fill="#ffffff22"/>
+  <circle cx="654" cy="76" r="16" fill="#fff"/>
+  <text x="646" y="79" class="lang" fill="#0f766e">RU</text>
+  <text x="676" y="79" class="lang" fill="#e5e7eb">TR</text>
+  <rect x="709" y="56" width="236" height="40" rx="20" class="btn"/>
+  <text x="726" y="80" class="status">Маршрут сейчас не активен</text>
 
   <g filter="url(#shadow)">
-    <rect x="42" y="149" width="306" height="76" rx="18" class="white"/>
-    <rect x="361" y="149" width="306" height="76" rx="18" class="white"/>
-    <rect x="681" y="149" width="306" height="76" rx="18" class="white"/>
+    <rect x="24" y="152" width="305" height="76" rx="18" fill="#fff"/>
+    <rect x="344" y="152" width="305" height="76" rx="18" fill="#fff"/>
+    <rect x="664" y="152" width="304" height="76" rx="18" fill="#fff"/>
   </g>
-  <text x="60" y="176" class="muted">Текущая остановка</text><text x="60" y="204" class="text">Маршрут не активен</text>
-  <text x="379" y="176" class="muted">Следующая остановка</text><text x="379" y="204" class="text">Маршрут не активен</text>
-  <text x="699" y="176" class="muted">Прогноз прибытия</text><text x="699" y="204" class="text">—</text>
+  <text x="42" y="178" class="label">Текущая остановка</text><text x="42" y="205" class="text">Маршрут не активен</text>
+  <text x="362" y="178" class="label">Следующая остановка</text><text x="362" y="205" class="text">Маршрут не активен</text>
+  <text x="682" y="178" class="label">Прогноз прибытия</text><text x="682" y="205" class="text">—</text>
 
-  <rect x="42" y="240" width="364" height="622" rx="20" class="card"/>
-  <text x="60" y="274" class="text">Расписание</text><text x="362" y="272" class="muted">Утро</text>
+  <rect x="24" y="244" width="364" height="622" rx="20" class="card"/>
+  <text x="42" y="277" class="panelTitle">Расписание</text><text x="345" y="274" class="muted">Утро</text>
 
-  <g transform="translate(60 294)">
-    <g><rect width="328" height="52" rx="12" class="stop"/><text x="12" y="32" class="time">07:20</text><circle cx="84" cy="26" r="12" class="dot"/><text x="80" y="30" font-size="13">○</text><text x="109" y="24" class="text" font-size="15">Vadi Market</text><text x="109" y="39" class="muted">Vadi Market / Вади Маркет</text></g>
-    <g transform="translate(0 62)"><rect width="328" height="52" rx="12" class="stop"/><text x="12" y="32" class="time">07:22</text><circle cx="84" cy="26" r="12" class="dot"/><text x="80" y="30" font-size="13">○</text><text x="109" y="24" class="text" font-size="15">Carrefour market</text><text x="109" y="39" class="muted">Carrefour market</text></g>
-    <g transform="translate(0 124)"><rect width="328" height="52" rx="12" class="stop"/><text x="12" y="32" class="time">07:25</text><circle cx="84" cy="26" r="12" class="dot"/><text x="80" y="30" font-size="13">○</text><text x="109" y="24" class="text" font-size="15">Unlu Market</text><text x="109" y="39" class="muted">Ünlü market / Унлю Маркет</text></g>
-    <g transform="translate(0 186)"><rect width="328" height="52" rx="12" class="stop"/><text x="12" y="32" class="time">07:28</text><circle cx="84" cy="26" r="12" class="dot"/><text x="80" y="30" font-size="13">○</text><text x="109" y="24" class="text" font-size="15">Stadyum / Стадион</text><text x="109" y="39" class="muted">Stadyum / Стадион</text></g>
-    <g transform="translate(0 248)"><rect width="328" height="52" rx="12" class="stop"/><text x="12" y="32" class="time">07:29</text><circle cx="84" cy="26" r="12" class="dot"/><text x="80" y="30" font-size="13">○</text><text x="109" y="24" class="text" font-size="15">Kelebek</text><text x="109" y="39" class="muted">Kelebek mobilye / Келебек мебель</text></g>
-    <g transform="translate(0 310)"><rect width="328" height="52" rx="12" class="stop"/><text x="12" y="32" class="time">07:44</text><circle cx="84" cy="26" r="12" class="dot"/><text x="80" y="30" font-size="13">○</text><text x="109" y="24" class="text" font-size="15">Ekomini / Экомини</text><text x="109" y="39" class="muted">Ekomini / Экомини</text></g>
-    <g transform="translate(0 372)"><rect width="328" height="52" rx="12" class="stop"/><text x="12" y="32" class="time">07:46</text><circle cx="84" cy="26" r="12" class="dot"/><text x="80" y="30" font-size="13">○</text><text x="109" y="24" class="text" font-size="15">Ziraat Bankası / Банк Зираат</text><text x="109" y="39" class="muted">Ziraat bankası / Банк зираат</text></g>
-    <g transform="translate(0 434)"><rect width="328" height="52" rx="12" class="stop"/><text x="12" y="32" class="time">07:48</text><circle cx="84" cy="26" r="12" class="dot"/><text x="80" y="30" font-size="13">○</text><text x="109" y="24" class="text" font-size="15">Botanic site</text><text x="109" y="39" class="muted">Botanic site</text></g>
-    <g transform="translate(0 496)"><rect width="328" height="52" rx="12" class="stop"/><text x="12" y="32" class="time">08:30</text><circle cx="84" cy="26" r="12" class="dot"/><text x="80" y="30" font-size="13">○</text><text x="109" y="24" class="text" font-size="15">İNTENS / ИНТЕНС</text><text x="109" y="39" class="muted">İntens / Интенс</text></g>
+  <g transform="translate(42 296)">
+    <g><rect width="328" height="52" rx="12" class="stop"/><text x="12" y="32" class="time">07:20</text><circle cx="84" cy="26" r="12" class="dot"/><text x="80" y="30" font-size="12">○</text><text x="109" y="24" class="stopName">Vadi Market</text><text x="109" y="39" class="zone">Vadi Market / Вади Маркет</text></g>
+    <g transform="translate(0 62)"><rect width="328" height="52" rx="12" class="stop"/><text x="12" y="32" class="time">07:22</text><circle cx="84" cy="26" r="12" class="dot"/><text x="80" y="30" font-size="12">○</text><text x="109" y="24" class="stopName">Carrefour market</text><text x="109" y="39" class="zone">Carrefour market</text></g>
+    <g transform="translate(0 124)"><rect width="328" height="52" rx="12" class="stop"/><text x="12" y="32" class="time">07:25</text><circle cx="84" cy="26" r="12" class="dot"/><text x="80" y="30" font-size="12">○</text><text x="109" y="24" class="stopName">Unlu Market</text><text x="109" y="39" class="zone">Ünlü market / Унлю Маркет</text></g>
+    <g transform="translate(0 186)"><rect width="328" height="52" rx="12" class="stop"/><text x="12" y="32" class="time">07:28</text><circle cx="84" cy="26" r="12" class="dot"/><text x="80" y="30" font-size="12">○</text><text x="109" y="24" class="stopName">Stadyum / Стадион</text><text x="109" y="39" class="zone">Stadyum / Стадион</text></g>
+    <g transform="translate(0 248)"><rect width="328" height="52" rx="12" class="stop"/><text x="12" y="32" class="time">07:29</text><circle cx="84" cy="26" r="12" class="dot"/><text x="80" y="30" font-size="12">○</text><text x="109" y="24" class="stopName">Kelebek</text><text x="109" y="39" class="zone">Kelebek mobilye / Келебек мебель</text></g>
+    <g transform="translate(0 310)"><rect width="328" height="52" rx="12" class="stop"/><text x="12" y="32" class="time">07:44</text><circle cx="84" cy="26" r="12" class="dot"/><text x="80" y="30" font-size="12">○</text><text x="109" y="24" class="stopName">Ekomini / Экомини</text><text x="109" y="39" class="zone">Ekomini / Экомини</text></g>
+    <g transform="translate(0 372)"><rect width="328" height="52" rx="12" class="stop"/><text x="12" y="32" class="time">07:46</text><circle cx="84" cy="26" r="12" class="dot"/><text x="80" y="30" font-size="12">○</text><text x="109" y="24" class="stopName">Ziraat Bankası / Банк Зираат</text><text x="109" y="39" class="zone">Ziraat bankası / Банк зираат</text></g>
+    <g transform="translate(0 434)"><rect width="328" height="52" rx="12" class="stop"/><text x="12" y="32" class="time">07:48</text><circle cx="84" cy="26" r="12" class="dot"/><text x="80" y="30" font-size="12">○</text><text x="109" y="24" class="stopName">Botanic site</text><text x="109" y="39" class="zone">Botanic site</text></g>
+    <g transform="translate(0 496)"><rect width="328" height="52" rx="12" class="stop"/><text x="12" y="32" class="time">08:30</text><circle cx="84" cy="26" r="12" class="dot"/><text x="80" y="30" font-size="12">○</text><text x="109" y="24" class="stopName">İNTENS / ИНТЕНС</text><text x="109" y="39" class="zone">İntens / Интенс</text></g>
   </g>
 
-  <rect x="420" y="240" width="567" height="622" rx="20" class="card"/>
-  <text x="438" y="274" class="text">Карта</text><text x="937" y="272" class="muted">0 км/ч</text>
-  <clipPath id="mapclip"><rect x="438" y="294" width="531" height="416" rx="14"/></clipPath>
+  <rect x="402" y="244" width="566" height="622" rx="20" class="card"/>
+  <text x="420" y="277" class="panelTitle">Карта</text><text x="920" y="274" class="muted">0 км/ч</text>
+
+  <clipPath id="mapclip"><rect x="420" y="295" width="531" height="418" rx="15"/></clipPath>
   <g clip-path="url(#mapclip)">
-    <rect x="438" y="294" width="531" height="416" class="mapblue"/>
-    <path d="M438 294 C540 300,595 330,655 305 C730 275,832 286,969 320 L969 294 Z" class="mapgreen"/>
-    <path d="M438 520 C520 485,600 460,675 435 C760 404,870 380,969 385" class="road"/>
-    <path d="M595 600 C660 530,725 460,817 405" class="route"/>
-    <circle cx="585" cy="595" r="18" class="buspin"/><text x="573" y="601" font-size="19">🚌</text>
-    <circle cx="783" cy="459" r="10" class="pin"/><circle cx="817" cy="405" r="10" class="pin"/>
-    <rect x="448" y="304" width="24" height="48" fill="#fff" stroke="#d1d5db"/><text x="454" y="322" font-size="20" font-weight="700">+</text><line x1="448" y1="328" x2="472" y2="328" stroke="#d1d5db"/><text x="456" y="346" font-size="20">−</text>
-    <text x="836" y="704" class="muted">Leaflet | © OpenStreetMap</text>
+    <rect x="420" y="295" width="531" height="418" class="mapWater"/>
+    <path d="M420 295 H951 V410 C900 425,850 450,820 488 C770 552,706 592,620 602 C560 609,500 590,420 620 Z" class="mapLand"/>
+    <path d="M490 295 C590 300,650 330,745 325 C830 320,890 330,951 350 L951 295 Z" class="mapForest"/>
+    <path d="M420 610 C492 585,550 560,620 535 C720 500,800 460,951 382" class="road"/>
+    <path d="M510 655 C590 610,670 540,760 470 C820 425,875 398,904 390" class="route"/>
+    <line x1="545" y1="295" x2="545" y2="713" class="grid"/><line x1="750" y1="295" x2="750" y2="713" class="grid"/>
+    <line x1="420" y1="435" x2="951" y2="435" class="grid"/><line x1="420" y1="620" x2="951" y2="620" class="grid"/>
+
+    <g opacity=".65">
+      <path d="M570 330 l4 8 h-8z" class="mount"/><path d="M640 345 l4 8 h-8z" class="mount"/><path d="M705 370 l4 8 h-8z" class="mount"/><path d="M735 510 l4 8 h-8z" class="mount"/><path d="M680 585 l4 8 h-8z" class="mount"/><path d="M500 625 l4 8 h-8z" class="mount"/><path d="M610 480 l4 8 h-8z" class="mount"/><path d="M820 430 l4 8 h-8z" class="mount"/><path d="M880 370 l4 8 h-8z" class="mount"/><path d="M525 360 l4 8 h-8z" class="mount"/><path d="M590 420 l4 8 h-8z" class="mount"/><path d="M710 440 l4 8 h-8z" class="mount"/>
+    </g>
+
+    <circle cx="900" cy="405" r="10" class="pin"/>
+    <circle cx="510" cy="655" r="8" class="pin"/>
+    <circle cx="511" cy="676" r="18" class="buspin"/><text x="499" y="682" font-size="19">🚌</text>
+
+    <rect x="431" y="305" width="24" height="48" fill="#fff" stroke="#d1d5db"/>
+    <text x="437" y="323" font-size="20" font-weight="700">+</text>
+    <line x1="431" y1="329" x2="455" y2="329" stroke="#d1d5db"/>
+    <text x="439" y="347" font-size="20">−</text>
+    <text x="816" y="707" class="muted">Leaflet | © OpenStreetMap</text>
   </g>
 </svg>
