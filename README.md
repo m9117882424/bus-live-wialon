@@ -4,7 +4,7 @@
 
 ## Скриншот
 
-![Bus Live Wialon dashboard](docs/dashboard-screenshot.svg)
+![Bus Live Wialon dashboard](docs/dashboard-screenshot.png)
 
 ## Возможности
 
