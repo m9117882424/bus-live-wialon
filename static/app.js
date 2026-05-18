@@ -30,7 +30,7 @@ const i18n = {
     loadingError: "Yükleme hatası",
     ok: "Zamanında",
     warning: "Kısa gecikme",
-    critical: "Gecikiyor",
+    critical: "Gecikme",
     moving: "Servis yolda",
     inactive: "Güzergah şu anda aktif değil",
     inactiveShort: "Güzergah aktif değil",
@@ -40,6 +40,8 @@ const i18n = {
     finish: "Bitiş",
     plan: "plan",
     onTime: "zamanında",
+    delay: "gecikme",
+    ahead: "erken",
     minute: "dk"
   },
   ru: {
@@ -63,7 +65,7 @@ const i18n = {
     loadingError: "Ошибка загрузки",
     ok: "По расписанию",
     warning: "Небольшое опоздание",
-    critical: "Опаздывает",
+    critical: "Опоздание",
     moving: "Автобус в пути",
     inactive: "Маршрут сейчас не активен",
     inactiveShort: "Маршрут не активен",
@@ -73,6 +75,8 @@ const i18n = {
     finish: "Финиш",
     plan: "план",
     onTime: "по расписанию",
+    delay: "опоздание",
+    ahead: "опережение",
     minute: "мин"
   }
 };
@@ -121,8 +125,15 @@ function applyStaticTranslations() {
 
 function routeNameForLang(data) {
   const lang = getLang();
-  if (lang === "ru") return data.route_name_ru || data.route_name || t("routeFallback");
-  return data.route_name_tr || data.route_name || t("routeFallback");
+
+  if (lang === "ru") {
+    if (data.route_name_ru) return data.route_name_ru;
+    if (data.route_name === "Sabah Servis Güzergahı") return "Утренний маршрут";
+    return data.route_name || t("routeFallback");
+  }
+
+  if (data.route_name_tr) return data.route_name_tr;
+  return data.route_name || t("routeFallback");
 }
 
 function initLanguageSwitcher() {
@@ -155,9 +166,11 @@ function statusClass(status) {
 }
 
 function statusText(data) {
+  const delay = Math.abs(Number(data.delay_minutes || 0));
+
   if (data.status === "ok") return t("ok");
-  if (data.status === "warning") return `${t("warning")}: +${data.delay_minutes || 0} ${t("minute")}`;
-  if (data.status === "critical") return `${t("critical")}: +${data.delay_minutes || 0} ${t("minute")}`;
+  if (data.status === "warning") return `${t("warning")}: ${delay} ${t("minute")}`;
+  if (data.status === "critical") return `${t("critical")}: ${delay} ${t("minute")}`;
   if (data.status === "moving") return t("moving");
   if (data.status === "inactive") return t("inactive");
   if (data.status === "finished") return t("finished");
@@ -173,9 +186,12 @@ function directionText(direction) {
 
 function etaDelayText(eta) {
   if (!eta) return "—";
+
   const delay = Number(eta.eta_delay_minutes || 0);
-  if (delay > 0) return `+${delay} ${t("minute")}`;
-  if (delay < 0) return `${delay} ${t("minute")}`;
+  const absDelay = Math.abs(delay);
+
+  if (delay > 0) return `${t("delay")}: ${absDelay} ${t("minute")}`;
+  if (delay < 0) return `${t("ahead")}: ${absDelay} ${t("minute")}`;
   return t("onTime");
 }
 
@@ -309,7 +325,7 @@ function renderData(data) {
   latestData = data;
 
   if (!data.ok) {
-    document.getElementById("routeName").textContent = data.route_name || t("routeFallback");
+    document.getElementById("routeName").textContent = routeNameForLang(data);
     document.getElementById("busName").textContent = data.error || t("error");
     document.getElementById("statusBadge").textContent = t("checkSettings");
     document.getElementById("statusBadge").className = "status-badge critical";
