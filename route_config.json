@@ -1,5 +1,7 @@
 {
   "route_name": "Sabah Servis Güzergahı",
+  "route_name_tr": "Sabah Servis Güzergahı",
+  "route_name_ru": "Утренний маршрут",
   "direction": "morning",
   "timezone": "Europe/Istanbul",
   "refresh_seconds": 10,
