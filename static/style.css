@@ -26,6 +26,43 @@ body {
   box-shadow: 0 22px 60px rgba(15, 23, 42, 0.18);
 }
 
+.hero-main {
+  min-width: 0;
+}
+
+.hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.lang-switcher {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(8px);
+}
+
+.lang-btn {
+  border: 0;
+  cursor: pointer;
+  padding: 9px 12px;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.78);
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+
+.lang-btn.active {
+  background: white;
+  color: #0f766e;
+}
+
 .eyebrow {
   font-size: 13px;
   letter-spacing: 0.1em;
@@ -211,6 +248,10 @@ p {
   .hero {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .hero-actions {
+    justify-content: flex-start;
   }
 
   .summary-grid,
