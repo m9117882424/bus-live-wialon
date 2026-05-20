@@ -42,17 +42,6 @@
     },
     {
       "order": 3,
-      "name": "Unlu Market",
-      "planned_time": "07:25",
-      "zone_name": "Ünlü market / Унлю Маркет",
-      "resource_id": 600894911,
-      "resource_name": "tsmbus",
-      "zone_id": 69,
-      "lat": 36.382771,
-      "lon": 33.931221
-    },
-    {
-      "order": 4,
       "name": "Stadyum / Стадион",
       "planned_time": "07:28",
       "zone_name": "Stadyum / Стадион",
@@ -63,7 +52,7 @@
       "lon": 33.938258
     },
     {
-      "order": 5,
+      "order": 4,
       "name": "Kelebek",
       "planned_time": "07:29",
       "zone_name": "Kelebek mobiliye / Келебек мебель",
@@ -74,7 +63,7 @@
       "lon": 33.937647
     },
     {
-      "order": 6,
+      "order": 5,
       "name": "Ekomini / Экомини",
       "planned_time": "07:44",
       "zone_name": "Ekomini / Экомини",
@@ -85,7 +74,7 @@
       "lon": 33.883009
     },
     {
-      "order": 7,
+      "order": 6,
       "name": "Ziraat Bankası / Банк Зираат",
       "planned_time": "07:46",
       "zone_name": "Ziraat bankası / Банк зираат",
@@ -96,7 +85,7 @@
       "lon": 33.877798
     },
     {
-      "order": 8,
+      "order": 7,
       "name": "Botanic site",
       "planned_time": "07:48",
       "zone_name": "Botanic site",
@@ -107,7 +96,7 @@
       "lon": 33.875546
     },
     {
-      "order": 9,
+      "order": 8,
       "name": "İNTENS / ИНТЕНС",
       "planned_time": "08:30",
       "zone_name": "İntens / Интенс",
