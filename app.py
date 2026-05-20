@@ -44,9 +44,17 @@ class WialonClient:
             return
         self.login()
 
-    def call(self, svc: str, params: Optional[Dict[str, Any]] = None) -> Any:
+    def call(
+        self,
+        svc: str,
+        params: Optional[Dict[str, Any]] = None,
+        *,
+        attach_sid: bool = True,
+        retry_on_sid_error: bool = True,
+    ) -> Any:
         request_params = {"svc": svc, "params": json.dumps(params or {}, ensure_ascii=False)}
-        if self.sid:
+
+        if attach_sid and self.sid:
             request_params["sid"] = self.sid
 
         response = requests.get(f"{self.host}/wialon/ajax.html", params=request_params, timeout=30)
@@ -56,13 +64,29 @@ class WialonClient:
             raise WialonError(f"Wialon returned non-JSON response. HTTP {response.status_code}: {response.text[:500]}") from exc
 
         if isinstance(data, dict) and "error" in data:
+            if data.get("error") == 1 and svc != "token/login" and retry_on_sid_error:
+                self.sid = None
+                self.sid_created_at = None
+                self.login()
+                return self.call(svc, params, attach_sid=True, retry_on_sid_error=False)
+
             raise WialonError(f"Wialon API error in {svc}: {data}")
+
         return data
 
     def login(self) -> None:
         if not self.token:
             raise WialonError("WIALON_TOKEN is empty")
-        data = self.call("token/login", {"token": self.token})
+
+        self.sid = None
+        self.sid_created_at = None
+
+        data = self.call(
+            "token/login",
+            {"token": self.token},
+            attach_sid=False,
+            retry_on_sid_error=False,
+        )
         sid = data.get("eid")
         if not sid:
             raise WialonError(f"Login failed, no eid in response: {data}")
@@ -174,8 +198,11 @@ def find_tracked_bus(client: WialonClient, route_config: Dict[str, Any]) -> Opti
         target_id = get_config_bus_id(route_config)
     if target_id is not None:
         for unit in units:
-            if int(unit.get("id", -1)) == target_id:
-                return unit
+            try:
+                if int(unit.get("id", -1)) == target_id:
+                    return unit
+            except Exception:
+                continue
 
     bus_name = TRACKED_BUS_NAME_ENV or ((route_config.get("tracked_bus") or {}).get("name") or "")
     if bus_name:
@@ -222,7 +249,7 @@ def get_hit_stop_indices(stops: List[Dict[str, Any]], zone_pairs: List[Tuple[int
     return [idx for idx, stop in enumerate(stops) if get_stop_zone_pair(stop) in zone_pairs]
 
 
-def get_distance_hit_indices(stops: List[Dict[str, Any]], bus_position: Dict[str, Any], radius_meters: float) -> List[int]:
+def get_distance_hit_indices(stops: List[Dict[str, Any]], bus_position: Dict[str, Any], default_radius_meters: float) -> List[int]:
     bus_lat = bus_position.get("y")
     bus_lon = bus_position.get("x")
     if bus_lat is None or bus_lon is None:
@@ -231,6 +258,7 @@ def get_distance_hit_indices(stops: List[Dict[str, Any]], bus_position: Dict[str
     for idx, stop in enumerate(stops):
         if stop.get("lat") is None or stop.get("lon") is None:
             continue
+        radius_meters = float(stop.get("radius_meters") or default_radius_meters)
         distance_m = haversine_km(float(bus_lat), float(bus_lon), float(stop["lat"]), float(stop["lon"])) * 1000
         if distance_m <= radius_meters:
             hits.append(idx)
@@ -238,11 +266,11 @@ def get_distance_hit_indices(stops: List[Dict[str, Any]], bus_position: Dict[str
 
 
 def build_effective_zone_pairs(route_config: Dict[str, Any], stops: List[Dict[str, Any]], bus_position: Dict[str, Any], wialon_zone_pairs: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
-    radius_meters = float(route_config.get("stop_match_radius_meters", 100))
+    default_radius_meters = float(route_config.get("stop_match_radius_meters", 100))
     grace_seconds = float(route_config.get("stop_hit_grace_seconds", 10))
     now_ts = time.time()
     instant_hits = set(get_hit_stop_indices(stops, wialon_zone_pairs))
-    instant_hits.update(get_distance_hit_indices(stops, bus_position, radius_meters))
+    instant_hits.update(get_distance_hit_indices(stops, bus_position, default_radius_meters))
 
     recent_hits = ROUTE_PROGRESS.setdefault("recent_hits", {})
     for idx in instant_hits:
