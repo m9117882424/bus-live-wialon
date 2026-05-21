@@ -25,6 +25,7 @@ ROUTE_PROGRESS = {
     "last_passed_index": -1,
     "current_index": None,
     "recent_hits": {},
+    "position_history": [],
 }
 
 
@@ -147,9 +148,9 @@ def is_route_active(route_config: Dict[str, Any]) -> bool:
 def reset_progress_if_needed(route_active: bool) -> None:
     today_key = date.today().isoformat()
     if ROUTE_PROGRESS["date"] != today_key:
-        ROUTE_PROGRESS.update({"date": today_key, "last_passed_index": -1, "current_index": None, "recent_hits": {}})
+        ROUTE_PROGRESS.update({"date": today_key, "last_passed_index": -1, "current_index": None, "recent_hits": {}, "position_history": []})
     if not route_active:
-        ROUTE_PROGRESS.update({"last_passed_index": -1, "current_index": None, "recent_hits": {}})
+        ROUTE_PROGRESS.update({"last_passed_index": -1, "current_index": None, "recent_hits": {}, "position_history": []})
 
 
 def normalize_text(value: str) -> str:
@@ -249,69 +250,79 @@ def get_hit_stop_indices(stops: List[Dict[str, Any]], zone_pairs: List[Tuple[int
     return [idx for idx, stop in enumerate(stops) if get_stop_zone_pair(stop) in zone_pairs]
 
 
-def is_stop_time_allowed(route_config: Dict[str, Any], stop: Dict[str, Any]) -> bool:
-    tolerance_minutes = int(route_config.get("stop_early_tolerance_minutes", 3))
-    planned_time = stop.get("planned_time")
-    if not planned_time:
-        return True
-    return datetime.now() >= parse_hhmm(planned_time) - timedelta(minutes=tolerance_minutes)
+def add_position_to_history(route_config: Dict[str, Any], bus_position: Dict[str, Any]) -> None:
+    lat = bus_position.get("y")
+    lon = bus_position.get("x")
+    if lat is None or lon is None:
+        return
+
+    point_time = bus_position.get("t") or int(time.time())
+    point = {
+        "lat": float(lat),
+        "lon": float(lon),
+        "time": int(point_time),
+        "server_ts": time.time(),
+    }
+
+    history = ROUTE_PROGRESS.setdefault("position_history", [])
+    if history and history[-1].get("lat") == point["lat"] and history[-1].get("lon") == point["lon"] and history[-1].get("time") == point["time"]:
+        return
+
+    history.append(point)
+    max_age_seconds = int(route_config.get("position_history_minutes", 15)) * 60
+    cutoff = time.time() - max_age_seconds
+    ROUTE_PROGRESS["position_history"] = [p for p in history if float(p.get("server_ts", 0)) >= cutoff][-300:]
 
 
-def filter_hits_by_schedule(route_config: Dict[str, Any], stops: List[Dict[str, Any]], hit_indices: List[int]) -> List[int]:
-    return [idx for idx in hit_indices if 0 <= idx < len(stops) and is_stop_time_allowed(route_config, stops[idx])]
-
-
-def get_distance_hit_indices(stops: List[Dict[str, Any]], bus_position: Dict[str, Any], default_radius_meters: float) -> List[int]:
-    bus_lat = bus_position.get("y")
-    bus_lon = bus_position.get("x")
-    if bus_lat is None or bus_lon is None:
+def get_candidate_stop_indexes(route_config: Dict[str, Any], stops: List[Dict[str, Any]]) -> List[int]:
+    if not stops:
         return []
-    hits: List[int] = []
-    for idx, stop in enumerate(stops):
+
+    last_passed = int(ROUTE_PROGRESS.get("last_passed_index", -1))
+    lookbehind = int(route_config.get("progress_lookbehind_stops", 2))
+    lookahead = int(route_config.get("progress_lookahead_stops", 3))
+
+    if last_passed < 0:
+        start = 0
+        end = min(len(stops) - 1, int(route_config.get("start_fallback_max_stop_index", 3)))
+    else:
+        start = max(0, last_passed - lookbehind)
+        end = min(len(stops) - 1, last_passed + lookahead)
+
+    return list(range(start, end + 1))
+
+
+def get_history_distance_hit_indices(route_config: Dict[str, Any], stops: List[Dict[str, Any]]) -> List[int]:
+    default_radius_meters = float(route_config.get("stop_match_radius_meters", 100))
+    candidate_indexes = set(get_candidate_stop_indexes(route_config, stops))
+    history = ROUTE_PROGRESS.get("position_history", [])
+    hits = set()
+
+    for idx in candidate_indexes:
+        stop = stops[idx]
         if stop.get("lat") is None or stop.get("lon") is None:
             continue
         radius_meters = float(stop.get("radius_meters") or default_radius_meters)
-        distance_m = haversine_km(float(bus_lat), float(bus_lon), float(stop["lat"]), float(stop["lon"])) * 1000
-        if distance_m <= radius_meters:
-            hits.append(idx)
-    return hits
+        for point in history:
+            distance_m = haversine_km(float(point["lat"]), float(point["lon"]), float(stop["lat"]), float(stop["lon"])) * 1000
+            if distance_m <= radius_meters:
+                hits.add(idx)
+                break
+
+    return sorted(hits)
 
 
-def build_effective_zone_pairs(route_config: Dict[str, Any], stops: List[Dict[str, Any]], bus_position: Dict[str, Any], wialon_zone_pairs: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
-    default_radius_meters = float(route_config.get("stop_match_radius_meters", 100))
-    grace_seconds = float(route_config.get("stop_hit_grace_seconds", 10))
-    now_ts = time.time()
-
-    instant_hits = set(get_hit_stop_indices(stops, wialon_zone_pairs))
-    instant_hits.update(get_distance_hit_indices(stops, bus_position, default_radius_meters))
-    instant_hits = set(filter_hits_by_schedule(route_config, stops, sorted(instant_hits)))
-
-    recent_hits = ROUTE_PROGRESS.setdefault("recent_hits", {})
-    for idx in instant_hits:
-        recent_hits[str(idx)] = now_ts
-
-    effective_indices = set()
-    for key in list(recent_hits.keys()):
-        try:
-            idx = int(key)
-            hit_ts = float(recent_hits[key])
-        except Exception:
-            recent_hits.pop(key, None)
-            continue
-        if not is_stop_time_allowed(route_config, stops[idx]):
-            recent_hits.pop(key, None)
-            continue
-        if now_ts - hit_ts <= grace_seconds:
-            effective_indices.add(idx)
-        else:
-            recent_hits.pop(key, None)
+def build_effective_zone_pairs(route_config: Dict[str, Any], stops: List[Dict[str, Any]], wialon_zone_pairs: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
+    candidate_indexes = set(get_candidate_stop_indexes(route_config, stops))
+    wialon_hit_indices = set(get_hit_stop_indices(stops, wialon_zone_pairs))
+    history_hit_indices = set(get_history_distance_hit_indices(route_config, stops))
+    hit_indices = sorted((wialon_hit_indices | history_hit_indices) & candidate_indexes)
 
     pairs: List[Tuple[int, int]] = []
-    for idx in sorted(effective_indices):
-        if 0 <= idx < len(stops):
-            pair = get_stop_zone_pair(stops[idx])
-            if pair[0] is not None and pair[1] is not None:
-                pairs.append(pair)
+    for idx in hit_indices:
+        pair = get_stop_zone_pair(stops[idx])
+        if pair[0] is not None and pair[1] is not None:
+            pairs.append(pair)
     return pairs
 
 
@@ -324,22 +335,13 @@ def update_ordered_progress(route_config: Dict[str, Any], stops: List[Dict[str, 
     current_stop_index = None
 
     if last_passed < 0:
-        if 0 in hit_indices:
-            current_stop_index = 0
-            last_passed = 0
-            ROUTE_PROGRESS["last_passed_index"] = 0
-            ROUTE_PROGRESS["current_index"] = 0
+        if hit_indices:
+            current_stop_index = max(hit_indices)
+            last_passed = current_stop_index
+            ROUTE_PROGRESS["last_passed_index"] = last_passed
+            ROUTE_PROGRESS["current_index"] = current_stop_index
         else:
-            max_start_idx = int(route_config.get("start_fallback_max_stop_index", 3))
-            first_stop_time_reached = datetime.now() >= parse_hhmm(stops[0]["planned_time"])
-            fallback_hits = [idx for idx in hit_indices if 0 < idx <= max_start_idx]
-            if first_stop_time_reached and fallback_hits:
-                current_stop_index = max(fallback_hits)
-                last_passed = current_stop_index
-                ROUTE_PROGRESS["last_passed_index"] = last_passed
-                ROUTE_PROGRESS["current_index"] = current_stop_index
-            else:
-                ROUTE_PROGRESS["current_index"] = None
+            ROUTE_PROGRESS["current_index"] = None
     else:
         forward_hits = [idx for idx in hit_indices if idx > last_passed]
         if forward_hits:
@@ -455,7 +457,7 @@ def health():
 
 @app.post("/api/reset-progress")
 def reset_progress():
-    ROUTE_PROGRESS.update({"date": date.today().isoformat(), "last_passed_index": -1, "current_index": None, "recent_hits": {}})
+    ROUTE_PROGRESS.update({"date": date.today().isoformat(), "last_passed_index": -1, "current_index": None, "recent_hits": {}, "position_history": []})
     return {"ok": True, "message": "Route progress reset", "route_progress": ROUTE_PROGRESS}
 
 
@@ -466,7 +468,7 @@ def set_progress(last_passed_index: int):
     if not stops:
         return JSONResponse(status_code=400, content={"ok": False, "error": "No stops configured"})
     last_passed_index = max(-1, min(last_passed_index, len(stops) - 1))
-    ROUTE_PROGRESS.update({"date": date.today().isoformat(), "last_passed_index": last_passed_index, "current_index": None, "recent_hits": {}})
+    ROUTE_PROGRESS.update({"date": date.today().isoformat(), "last_passed_index": last_passed_index, "current_index": None, "recent_hits": {}, "position_history": []})
     next_stop = stops[last_passed_index + 1] if last_passed_index + 1 < len(stops) else None
     return {"ok": True, "message": "Route progress updated", "last_passed_index": last_passed_index, "next_stop": next_stop, "route_progress": ROUTE_PROGRESS}
 
@@ -500,6 +502,8 @@ def bus_status():
 
         unit_id = int(bus["id"])
         position = bus.get("pos") or {}
+        add_position_to_history(route_config, position)
+
         bus_payload = {
             "unit_id": unit_id,
             "name": bus.get("nm"),
@@ -524,7 +528,7 @@ def bus_status():
         zone_id_map = build_zone_id_map(stops)
         zones_raw = client.get_zones_by_unit(unit_id, zone_id_map) if zone_id_map else {}
         wialon_pairs = get_current_zone_ids(zones_raw, unit_id)
-        effective_pairs = build_effective_zone_pairs(route_config, stops, position, wialon_pairs)
+        effective_pairs = build_effective_zone_pairs(route_config, stops, wialon_pairs)
         progress = update_ordered_progress(route_config, stops, effective_pairs)
         status_info = calculate_status_by_progress(route_config, stops, progress)
 
@@ -539,6 +543,12 @@ def bus_status():
             "current_stop": status_info.get("current_stop"),
             "next_stop": status_info.get("next_stop"),
             "stops": render_stop_states(stops, progress, True),
+            "debug": {
+                "last_passed_index": ROUTE_PROGRESS.get("last_passed_index"),
+                "position_history_count": len(ROUTE_PROGRESS.get("position_history", [])),
+                "candidate_stop_indexes": get_candidate_stop_indexes(route_config, stops),
+                "hit_indices": progress.get("hit_indices", []),
+            },
             "updated_at": datetime.now().strftime("%H:%M:%S"),
         }
     except Exception as exc:
