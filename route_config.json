@@ -79,6 +79,17 @@
     },
     {
       "order": 6,
+      "name": "A-101 kavşak / А-101 перекресток",
+      "planned_time": "07:45",
+      "zone_name": "A-101 kavşak / А-101 перекресток",
+      "resource_id": 600894911,
+      "resource_name": "tsmbus",
+      "zone_id": 3,
+      "lat": 36.319959,
+      "lon": 33.879904
+    },
+    {
+      "order": 7,
       "name": "Ziraat Bankası / Банк Зираат",
       "planned_time": "07:46",
       "zone_name": "Ziraat bankası / Банк зираат",
@@ -89,7 +100,7 @@
       "lon": 33.877798
     },
     {
-      "order": 7,
+      "order": 8,
       "name": "Botanic site",
       "planned_time": "07:48",
       "zone_name": "Botanic site",
@@ -100,7 +111,18 @@
       "lon": 33.875546
     },
     {
-      "order": 8,
+      "order": 9,
+      "name": "Öğretmenevi / Дом учителя",
+      "planned_time": "07:49",
+      "zone_name": "Öğretmenevi / Дом учителя",
+      "resource_id": 600894911,
+      "resource_name": "tsmbus",
+      "zone_id": 68,
+      "lat": 36.317227,
+      "lon": 33.872665
+    },
+    {
+      "order": 10,
       "name": "İNTENS / ИНТЕНС",
       "planned_time": "08:30",
       "zone_name": "İntens / Интенс",
