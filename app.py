@@ -249,6 +249,18 @@ def get_hit_stop_indices(stops: List[Dict[str, Any]], zone_pairs: List[Tuple[int
     return [idx for idx, stop in enumerate(stops) if get_stop_zone_pair(stop) in zone_pairs]
 
 
+def is_stop_time_allowed(route_config: Dict[str, Any], stop: Dict[str, Any]) -> bool:
+    tolerance_minutes = int(route_config.get("stop_early_tolerance_minutes", 3))
+    planned_time = stop.get("planned_time")
+    if not planned_time:
+        return True
+    return datetime.now() >= parse_hhmm(planned_time) - timedelta(minutes=tolerance_minutes)
+
+
+def filter_hits_by_schedule(route_config: Dict[str, Any], stops: List[Dict[str, Any]], hit_indices: List[int]) -> List[int]:
+    return [idx for idx in hit_indices if 0 <= idx < len(stops) and is_stop_time_allowed(route_config, stops[idx])]
+
+
 def get_distance_hit_indices(stops: List[Dict[str, Any]], bus_position: Dict[str, Any], default_radius_meters: float) -> List[int]:
     bus_lat = bus_position.get("y")
     bus_lon = bus_position.get("x")
@@ -269,8 +281,10 @@ def build_effective_zone_pairs(route_config: Dict[str, Any], stops: List[Dict[st
     default_radius_meters = float(route_config.get("stop_match_radius_meters", 100))
     grace_seconds = float(route_config.get("stop_hit_grace_seconds", 10))
     now_ts = time.time()
+
     instant_hits = set(get_hit_stop_indices(stops, wialon_zone_pairs))
     instant_hits.update(get_distance_hit_indices(stops, bus_position, default_radius_meters))
+    instant_hits = set(filter_hits_by_schedule(route_config, stops, sorted(instant_hits)))
 
     recent_hits = ROUTE_PROGRESS.setdefault("recent_hits", {})
     for idx in instant_hits:
@@ -282,6 +296,9 @@ def build_effective_zone_pairs(route_config: Dict[str, Any], stops: List[Dict[st
             idx = int(key)
             hit_ts = float(recent_hits[key])
         except Exception:
+            recent_hits.pop(key, None)
+            continue
+        if not is_stop_time_allowed(route_config, stops[idx]):
             recent_hits.pop(key, None)
             continue
         if now_ts - hit_ts <= grace_seconds:
@@ -298,7 +315,7 @@ def build_effective_zone_pairs(route_config: Dict[str, Any], stops: List[Dict[st
     return pairs
 
 
-def update_ordered_progress(stops: List[Dict[str, Any]], current_zone_pairs: List[Tuple[int, int]]) -> Dict[str, Any]:
+def update_ordered_progress(route_config: Dict[str, Any], stops: List[Dict[str, Any]], current_zone_pairs: List[Tuple[int, int]]) -> Dict[str, Any]:
     if not stops:
         return {"current_stop_index": None, "next_stop_index": None, "last_passed_index": -1, "hit_indices": [], "finished": False}
 
@@ -313,7 +330,16 @@ def update_ordered_progress(stops: List[Dict[str, Any]], current_zone_pairs: Lis
             ROUTE_PROGRESS["last_passed_index"] = 0
             ROUTE_PROGRESS["current_index"] = 0
         else:
-            ROUTE_PROGRESS["current_index"] = None
+            max_start_idx = int(route_config.get("start_fallback_max_stop_index", 3))
+            first_stop_time_reached = datetime.now() >= parse_hhmm(stops[0]["planned_time"])
+            fallback_hits = [idx for idx in hit_indices if 0 < idx <= max_start_idx]
+            if first_stop_time_reached and fallback_hits:
+                current_stop_index = max(fallback_hits)
+                last_passed = current_stop_index
+                ROUTE_PROGRESS["last_passed_index"] = last_passed
+                ROUTE_PROGRESS["current_index"] = current_stop_index
+            else:
+                ROUTE_PROGRESS["current_index"] = None
     else:
         forward_hits = [idx for idx in hit_indices if idx > last_passed]
         if forward_hits:
@@ -499,7 +525,7 @@ def bus_status():
         zones_raw = client.get_zones_by_unit(unit_id, zone_id_map) if zone_id_map else {}
         wialon_pairs = get_current_zone_ids(zones_raw, unit_id)
         effective_pairs = build_effective_zone_pairs(route_config, stops, position, wialon_pairs)
-        progress = update_ordered_progress(stops, effective_pairs)
+        progress = update_ordered_progress(route_config, stops, effective_pairs)
         status_info = calculate_status_by_progress(route_config, stops, progress)
 
         return {
