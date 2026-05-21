@@ -45,16 +45,15 @@
       </div>
     </section>
 
-    <main class="content">
-      <section class="panel schedule-panel">
-        <div class="panel-title">
-          <h2 id="scheduleTitle">Saatler</h2>
-          <span id="routeDirection">Sabah</span>
-        </div>
+    <section class="panel progress-panel">
+      <div class="panel-title">
+        <h2 id="progressTitle">Маршрут</h2>
+        <span id="routeDirection">Sabah</span>
+      </div>
+      <div id="routeProgress" class="route-progress"></div>
+    </section>
 
-        <div id="schedule" class="timeline"></div>
-      </section>
-
+    <main class="content content-stacked">
       <section class="panel map-panel">
         <div class="panel-title">
           <h2 id="mapTitle">Harita</h2>
@@ -62,6 +61,15 @@
         </div>
 
         <div id="map"></div>
+      </section>
+
+      <section class="panel schedule-panel schedule-panel-compact">
+        <div class="panel-title">
+          <h2 id="scheduleTitle">Saatler</h2>
+          <span id="debugHint">debug</span>
+        </div>
+
+        <div id="schedule" class="timeline compact-timeline"></div>
       </section>
     </main>
   </div>
