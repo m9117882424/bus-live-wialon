@@ -19,6 +19,7 @@ const i18n = {
     nextStopLabel: "Sonraki durak",
     etaLabel: "Tahmini varış",
     scheduleTitle: "Saatler",
+    progressTitle: "Güzergah ilerlemesi",
     mapTitle: "Harita",
     morning: "Sabah",
     evening: "Akşam",
@@ -54,6 +55,7 @@ const i18n = {
     nextStopLabel: "Следующая остановка",
     etaLabel: "Прогноз прибытия",
     scheduleTitle: "Расписание",
+    progressTitle: "Прогресс маршрута",
     mapTitle: "Карта",
     morning: "Утро",
     evening: "Вечер",
@@ -108,6 +110,7 @@ function applyStaticTranslations() {
     nextStopLabel: "nextStopLabel",
     etaLabel: "etaLabel",
     scheduleTitle: "scheduleTitle",
+    progressTitle: "progressTitle",
     mapTitle: "mapTitle"
   };
 
@@ -200,6 +203,53 @@ function stopIcon(state) {
   if (state === "current") return "🚌";
   if (state === "time_passed") return "•";
   return "○";
+}
+
+function progressRatio(stops) {
+  if (!stops || stops.length <= 1) return 0;
+
+  let lastPassed = -1;
+  let current = -1;
+
+  stops.forEach((stop, idx) => {
+    if (stop.state === "passed") lastPassed = Math.max(lastPassed, idx);
+    if (stop.state === "current") current = idx;
+  });
+
+  const activeIndex = current >= 0 ? current : lastPassed;
+  if (activeIndex < 0) return 0;
+  if (activeIndex >= stops.length - 1) return 1;
+
+  return activeIndex / (stops.length - 1);
+}
+
+function renderRouteProgress(stops) {
+  const root = document.getElementById("routeProgress");
+  if (!root) return;
+
+  const safeStops = stops || [];
+  const ratio = progressRatio(safeStops);
+
+  root.innerHTML = `
+    <div class="route-progress-inner" style="--stop-count: ${Math.max(safeStops.length, 1)}; --progress-ratio: ${ratio};">
+      <div class="route-rail"></div>
+      <div class="route-rail-fill"></div>
+      <div class="route-bus" title="Bus">🚌</div>
+      ${safeStops.map((stop, idx) => `
+        <div class="route-stop ${stop.state || "pending"}" title="${stop.planned_time} · ${stop.name}">
+          <div class="route-stop-dot">${stopIcon(stop.state)}</div>
+          <div class="route-stop-time">${stop.planned_time}</div>
+          <div class="route-stop-name">${stop.name}</div>
+          <div class="route-stop-zone">${stop.zone_name || ""}</div>
+        </div>
+      `).join("")}
+    </div>
+  `;
+
+  const active = root.querySelector(".route-stop.current") || [...root.querySelectorAll(".route-stop.passed")].pop();
+  if (active && typeof active.scrollIntoView === "function") {
+    active.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  }
 }
 
 function busDivIcon() {
@@ -329,6 +379,7 @@ function renderData(data) {
     document.getElementById("busName").textContent = data.error || t("error");
     document.getElementById("statusBadge").textContent = t("checkSettings");
     document.getElementById("statusBadge").className = "status-badge critical";
+    renderRouteProgress(data.stops || []);
     renderSchedule(data.stops || []);
     renderEta(data);
     return;
@@ -362,6 +413,7 @@ function renderData(data) {
   document.getElementById("speedText").textContent =
     speed !== null && speed !== undefined ? `${speed} ${t("speedUnit")}` : `— ${t("speedUnit")}`;
 
+  renderRouteProgress(data.stops || []);
   renderSchedule(data.stops || []);
   renderMap(data);
 }
