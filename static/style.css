@@ -180,6 +180,24 @@ p {
   gap: 12px;
 }
 
+.schedule-bus {
+  position: absolute;
+  left: 86px;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #0f766e;
+  color: white;
+  border: 3px solid white;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.22);
+  transform: translateY(-50%);
+  transition: top 1.4s ease;
+  animation: bus-breathe 1.4s ease-in-out infinite;
+  z-index: 5;
+}
+
 .stop {
   position: relative;
   display: grid;
@@ -241,61 +259,25 @@ p {
   margin-top: 3px;
 }
 
-.stop.passed .dot {
+.stop.passed .dot,
+.stop.current .dot {
   background: #22c55e;
   color: white;
 }
 
-.stop.passed {
+.stop.passed,
+.stop.current {
   background: #f0fdf4;
   border-color: #bbf7d0;
 }
 
 .stop.current {
-  background: #ecfeff;
-  border-color: #67e8f9;
-  transform: scale(1.015);
-  box-shadow: 0 16px 32px rgba(8, 145, 178, 0.16);
+  transform: scale(1.01);
+  box-shadow: 0 12px 26px rgba(34, 197, 94, 0.13);
 }
 
 .stop.current .dot {
-  background: #0891b2;
-  color: white;
   animation: pulse-dot 1.25s infinite;
-}
-
-.stop.current::after,
-.stop.next::after {
-  content: "🚌";
-  position: absolute;
-  left: 86px;
-  top: 50%;
-  width: 38px;
-  height: 38px;
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-  background: #0f766e;
-  color: white;
-  border: 3px solid white;
-  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.22);
-  transform: translateY(-50%);
-  animation: bus-breathe 1.4s ease-in-out infinite;
-}
-
-.stop.next {
-  background: #fff7ed;
-  border-color: #fed7aa;
-}
-
-.stop.next .dot {
-  background: #f97316;
-  color: white;
-}
-
-.stop.next::after {
-  top: -10px;
-  transform: translateY(0);
 }
 
 .stop.time_passed {
@@ -303,23 +285,14 @@ p {
 }
 
 @keyframes pulse-dot {
-  0% { box-shadow: 0 0 0 0 rgba(8, 145, 178, 0.35); }
-  70% { box-shadow: 0 0 0 12px rgba(8, 145, 178, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(8, 145, 178, 0); }
+  0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.35); }
+  70% { box-shadow: 0 0 0 12px rgba(34, 197, 94, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
 }
 
 @keyframes bus-breathe {
   0%, 100% { transform: translateY(-50%) scale(1); }
   50% { transform: translateY(-50%) scale(1.08); }
-}
-
-.stop.next::after {
-  animation-name: bus-hop;
-}
-
-@keyframes bus-hop {
-  0%, 100% { transform: translateY(0) scale(1); }
-  50% { transform: translateY(-4px) scale(1.06); }
 }
 
 #map {
