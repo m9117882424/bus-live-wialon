@@ -197,7 +197,7 @@ function etaDelayText(eta) {
 
 function stopIcon(state) {
   if (state === "passed") return "✓";
-  if (state === "current") return "🚌";
+  if (state === "current") return "✓";
   if (state === "time_passed") return "•";
   return "○";
 }
@@ -223,22 +223,43 @@ function busDivIcon() {
 }
 
 function decorateStopsForVerticalAnimation(stops) {
-  const safeStops = stops || [];
-  let currentIndex = safeStops.findIndex(stop => stop.state === "current");
-
-  if (currentIndex < 0) {
-    const lastPassedIndex = safeStops.reduce((acc, stop, idx) => stop.state === "passed" ? idx : acc, -1);
-    const nextIndex = lastPassedIndex + 1;
-    if (nextIndex >= 0 && nextIndex < safeStops.length) currentIndex = nextIndex;
-  }
-
-  return safeStops.map((stop, idx) => {
-    const extraState = idx === currentIndex && stop.state !== "current" ? "next" : "";
-    return { ...stop, extraState };
-  });
+  return (stops || []).map(stop => ({ ...stop, extraState: "" }));
 }
 
-function renderSchedule(stops) {
+function placeVerticalBus(root, movementProgress) {
+  const oldBus = root.querySelector(".schedule-bus");
+  if (oldBus) oldBus.remove();
+
+  if (!movementProgress) return;
+
+  const fromIndex = Number(movementProgress.from_stop_index);
+  const toIndex = Number(movementProgress.to_stop_index);
+  const ratio = Math.max(0, Math.min(1, Number(movementProgress.ratio || 0)));
+  const rows = [...root.querySelectorAll(".stop")];
+
+  if (!Number.isFinite(fromIndex) || !Number.isFinite(toIndex) || !rows.length) return;
+
+  const fromRow = rows[fromIndex];
+  const toRow = rows[toIndex];
+  if (!fromRow || !toRow) return;
+
+  const rootRect = root.getBoundingClientRect();
+  const fromRect = fromRow.getBoundingClientRect();
+  const toRect = toRow.getBoundingClientRect();
+
+  const fromY = fromRect.top - rootRect.top + fromRect.height / 2;
+  const toY = toRect.top - rootRect.top + toRect.height / 2;
+  const y = fromY + (toY - fromY) * ratio;
+
+  const bus = document.createElement("div");
+  bus.className = "schedule-bus";
+  bus.textContent = "🚌";
+  bus.style.top = `${y}px`;
+  bus.title = `${Math.round(ratio * 100)}%`;
+  root.appendChild(bus);
+}
+
+function renderSchedule(stops, movementProgress = null) {
   const root = document.getElementById("schedule");
   root.innerHTML = "";
 
@@ -258,7 +279,9 @@ function renderSchedule(stops) {
     root.appendChild(row);
   });
 
-  const active = root.querySelector(".stop.current") || root.querySelector(".stop.next");
+  placeVerticalBus(root, movementProgress);
+
+  const active = root.querySelector(".stop.current") || root.querySelector(".stop.passed:last-of-type") || root.querySelector(".stop");
   if (active && typeof active.scrollIntoView === "function") {
     active.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
   }
@@ -350,7 +373,7 @@ function renderData(data) {
     document.getElementById("busName").textContent = data.error || t("error");
     document.getElementById("statusBadge").textContent = t("checkSettings");
     document.getElementById("statusBadge").className = "status-badge critical";
-    renderSchedule(data.stops || []);
+    renderSchedule(data.stops || [], null);
     renderEta(data);
     return;
   }
@@ -383,7 +406,7 @@ function renderData(data) {
   document.getElementById("speedText").textContent =
     speed !== null && speed !== undefined ? `${speed} ${t("speedUnit")}` : `— ${t("speedUnit")}`;
 
-  renderSchedule(data.stops || []);
+  renderSchedule(data.stops || [], data.movement_progress || null);
   renderMap(data);
 }
 
