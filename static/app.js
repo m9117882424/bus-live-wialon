@@ -37,6 +37,7 @@ const i18n = {
     finished: "Güzergah tamamlandı",
     noRoute: "Güzergah ayarlanmamış",
     onRoute: "Yolda",
+    enRouteTo: "Şuraya gidiyor",
     finish: "Bitiş",
     plan: "plan",
     onTime: "zamanında",
@@ -72,6 +73,7 @@ const i18n = {
     finished: "Маршрут завершён",
     noRoute: "Маршрут не настроен",
     onRoute: "В пути",
+    enRouteTo: "В пути к",
     finish: "Финиш",
     plan: "план",
     onTime: "по расписанию",
@@ -281,7 +283,9 @@ function renderSchedule(stops, movementProgress = null) {
 
   placeVerticalBus(root, movementProgress);
 
-  const active = root.querySelector(".stop.current") || root.querySelector(".stop.passed:last-of-type") || root.querySelector(".stop");
+  const activeIndex = movementProgress ? Number(movementProgress.to_stop_index) : -1;
+  const rows = [...root.querySelectorAll(".stop")];
+  const active = rows[activeIndex] || root.querySelector(".stop.current") || root.querySelector(".stop.passed:last-of-type") || root.querySelector(".stop");
   if (active && typeof active.scrollIntoView === "function") {
     active.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
   }
@@ -365,6 +369,22 @@ function renderEta(data) {
   }
 }
 
+function isMovingBetweenStops(data) {
+  const mp = data.movement_progress;
+  if (!mp || !data.next_stop) return false;
+  const fromIndex = Number(mp.from_stop_index);
+  const toIndex = Number(mp.to_stop_index);
+  const ratio = Number(mp.ratio || 0);
+  return Number.isFinite(fromIndex) && Number.isFinite(toIndex) && toIndex > fromIndex && ratio > 0.02 && ratio < 0.98;
+}
+
+function currentStopText(data) {
+  if (data.status === "inactive") return t("inactiveShort");
+  if (isMovingBetweenStops(data)) return `${t("enRouteTo")} ${data.next_stop.name}`;
+  if (data.current_stop) return data.current_stop.name;
+  return t("onRoute");
+}
+
 function renderData(data) {
   latestData = data;
 
@@ -386,12 +406,7 @@ function renderData(data) {
   badge.textContent = statusText(data);
   badge.className = `status-badge ${statusClass(data.status)}`;
 
-  document.getElementById("currentStop").textContent =
-    data.current_stop
-      ? data.current_stop.name
-      : data.status === "inactive"
-        ? t("inactiveShort")
-        : t("onRoute");
+  document.getElementById("currentStop").textContent = currentStopText(data);
 
   document.getElementById("nextStop").textContent =
     data.next_stop
