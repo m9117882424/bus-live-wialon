@@ -179,6 +179,10 @@ def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return radius_km * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
+def clamp(value: float, min_value: float = 0.0, max_value: float = 1.0) -> float:
+    return max(min_value, min(max_value, value))
+
+
 def get_config_bus_id(route_config: Dict[str, Any]) -> Optional[int]:
     unit_id = (route_config.get("tracked_bus") or {}).get("unit_id")
     try:
@@ -284,7 +288,7 @@ def get_candidate_stop_indexes(route_config: Dict[str, Any], stops: List[Dict[st
 
     if last_passed < 0:
         start = 0
-        end = min(len(stops) - 1, int(route_config.get("start_fallback_max_stop_index", 3)))
+        end = min(len(stops) - 1, int(route_config.get("start_fallback_max_stop_index", 0)))
     else:
         start = max(0, last_passed - lookbehind)
         end = min(len(stops) - 1, last_passed + lookahead)
@@ -335,11 +339,11 @@ def update_ordered_progress(route_config: Dict[str, Any], stops: List[Dict[str, 
     current_stop_index = None
 
     if last_passed < 0:
-        if hit_indices:
-            current_stop_index = max(hit_indices)
-            last_passed = current_stop_index
-            ROUTE_PROGRESS["last_passed_index"] = last_passed
-            ROUTE_PROGRESS["current_index"] = current_stop_index
+        if 0 in hit_indices:
+            current_stop_index = 0
+            last_passed = 0
+            ROUTE_PROGRESS["last_passed_index"] = 0
+            ROUTE_PROGRESS["current_index"] = 0
         else:
             ROUTE_PROGRESS["current_index"] = None
     else:
@@ -395,6 +399,47 @@ def build_eta_info(route_config: Dict[str, Any], bus_position: Dict[str, Any], n
         "planned_time": next_stop["planned_time"],
         "eta_delay_minutes": eta_delay_minutes,
         "eta_delay_text": delay_text,
+    }
+
+
+def build_movement_progress(stops: List[Dict[str, Any]], progress: Dict[str, Any], bus_position: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    if not stops:
+        return None
+
+    bus_lat = bus_position.get("y")
+    bus_lon = bus_position.get("x")
+    if bus_lat is None or bus_lon is None:
+        return None
+
+    last_passed = int(progress.get("last_passed_index", -1))
+    next_idx = progress.get("next_stop_index")
+
+    if next_idx is None:
+        return {"from_stop_index": len(stops) - 1, "to_stop_index": len(stops) - 1, "ratio": 1.0}
+
+    if last_passed < 0:
+        return {"from_stop_index": 0, "to_stop_index": 0, "ratio": 0.0}
+
+    if last_passed >= len(stops) or next_idx >= len(stops):
+        return None
+
+    from_stop = stops[last_passed]
+    to_stop = stops[next_idx]
+    if from_stop.get("lat") is None or from_stop.get("lon") is None or to_stop.get("lat") is None or to_stop.get("lon") is None:
+        return None
+
+    segment_km = haversine_km(float(from_stop["lat"]), float(from_stop["lon"]), float(to_stop["lat"]), float(to_stop["lon"]))
+    if segment_km <= 0:
+        ratio = 0.0
+    else:
+        distance_to_next_km = haversine_km(float(bus_lat), float(bus_lon), float(to_stop["lat"]), float(to_stop["lon"]))
+        ratio = clamp(1 - (distance_to_next_km / segment_km))
+
+    return {
+        "from_stop_index": last_passed,
+        "to_stop_index": next_idx,
+        "ratio": round(ratio, 3),
+        "segment_km": round(segment_km, 3),
     }
 
 
@@ -515,6 +560,7 @@ def bus_status():
                 **response_base,
                 "ok": True,
                 "eta": None,
+                "movement_progress": None,
                 "bus": bus_payload,
                 "status": "inactive",
                 "status_text": "Güzergah şu anda aktif değil",
@@ -536,6 +582,7 @@ def bus_status():
             **response_base,
             "ok": True,
             "eta": build_eta_info(route_config, position, status_info.get("next_stop")),
+            "movement_progress": build_movement_progress(stops, progress, position),
             "bus": bus_payload,
             "status": status_info.get("status"),
             "status_text": status_info.get("status_text"),
@@ -548,6 +595,7 @@ def bus_status():
                 "position_history_count": len(ROUTE_PROGRESS.get("position_history", [])),
                 "candidate_stop_indexes": get_candidate_stop_indexes(route_config, stops),
                 "hit_indices": progress.get("hit_indices", []),
+                "movement_progress": build_movement_progress(stops, progress, position),
             },
             "updated_at": datetime.now().strftime("%H:%M:%S"),
         }
