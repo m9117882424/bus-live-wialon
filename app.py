@@ -120,6 +120,28 @@ class WialonClient:
         self.ensure_login()
         return self.call("resource/get_zones_by_unit", {"spec": {"zoneId": zone_id_map, "units": [unit_id], "time": 0}})
 
+    def load_interval_messages(self, unit_id: int, time_from: int, time_to: int, load_count: int = 1000) -> List[Dict[str, Any]]:
+        self.ensure_login()
+        data = self.call(
+            "messages/load_interval",
+            {
+                "itemId": unit_id,
+                "timeFrom": time_from,
+                "timeTo": time_to,
+                "flags": 0,
+                "flagsMask": 0,
+                "loadCount": load_count,
+            },
+        )
+
+        if isinstance(data, list):
+            return data
+        if isinstance(data, dict):
+            messages = data.get("messages") or data.get("msgs") or []
+            return messages if isinstance(messages, list) else []
+
+        return []
+
 
 def load_route_config() -> Dict[str, Any]:
     with open(ROUTE_CONFIG_PATH, "r", encoding="utf-8") as file:
@@ -276,6 +298,77 @@ def add_position_to_history(route_config: Dict[str, Any], bus_position: Dict[str
     max_age_seconds = int(route_config.get("position_history_minutes", 15)) * 60
     cutoff = time.time() - max_age_seconds
     ROUTE_PROGRESS["position_history"] = [p for p in history if float(p.get("server_ts", 0)) >= cutoff][-300:]
+
+
+def add_position_point_to_history(
+    route_config: Dict[str, Any],
+    lat: float,
+    lon: float,
+    point_time: Optional[int] = None,
+    source: str = "wialon",
+) -> None:
+    try:
+        point = {
+            "lat": float(lat),
+            "lon": float(lon),
+            "time": int(point_time or time.time()),
+            "server_ts": time.time(),
+            "source": source,
+        }
+    except Exception:
+        return
+
+    history = ROUTE_PROGRESS.setdefault("position_history", [])
+
+    for existing in history[-30:]:
+        if (
+            existing.get("time") == point["time"]
+            and abs(float(existing.get("lat", 0)) - point["lat"]) < 0.000001
+            and abs(float(existing.get("lon", 0)) - point["lon"]) < 0.000001
+        ):
+            return
+
+    history.append(point)
+
+    max_age_seconds = int(route_config.get("position_history_minutes", 5)) * 60
+    cutoff = time.time() - max_age_seconds
+    ROUTE_PROGRESS["position_history"] = [
+        p for p in history
+        if float(p.get("server_ts", 0)) >= cutoff
+    ][-300:]
+
+
+def add_recent_wialon_messages_to_history(client: WialonClient, route_config: Dict[str, Any], unit_id: int) -> int:
+    minutes = int(route_config.get("position_history_minutes", 5))
+    time_to = int(time.time())
+    time_from = time_to - minutes * 60
+
+    try:
+        messages = client.load_interval_messages(unit_id, time_from, time_to)
+    except Exception:
+        return 0
+
+    added = 0
+    for msg in messages:
+        if not isinstance(msg, dict):
+            continue
+
+        pos = msg.get("pos") or msg.get("p") or {}
+        lat = pos.get("y", msg.get("y"))
+        lon = pos.get("x", msg.get("x"))
+        point_time = msg.get("t") or pos.get("t") or time_to
+
+        if lat is None or lon is None:
+            continue
+
+        before = len(ROUTE_PROGRESS.get("position_history", []))
+        add_position_point_to_history(route_config, lat, lon, point_time, source="messages/load_interval")
+        after = len(ROUTE_PROGRESS.get("position_history", []))
+
+        if after > before:
+            added += 1
+
+    return added
 
 
 def get_candidate_stop_indexes(route_config: Dict[str, Any], stops: List[Dict[str, Any]]) -> List[int]:
@@ -548,6 +641,7 @@ def bus_status():
         unit_id = int(bus["id"])
         position = bus.get("pos") or {}
         add_position_to_history(route_config, position)
+        history_loaded_count = add_recent_wialon_messages_to_history(client, route_config, unit_id)
 
         bus_payload = {
             "unit_id": unit_id,
@@ -593,6 +687,7 @@ def bus_status():
             "debug": {
                 "last_passed_index": ROUTE_PROGRESS.get("last_passed_index"),
                 "position_history_count": len(ROUTE_PROGRESS.get("position_history", [])),
+                "history_loaded_count": history_loaded_count,
                 "candidate_stop_indexes": get_candidate_stop_indexes(route_config, stops),
                 "hit_indices": progress.get("hit_indices", []),
                 "movement_progress": build_movement_progress(stops, progress, position),

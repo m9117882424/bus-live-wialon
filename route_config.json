@@ -10,7 +10,7 @@
   "eta_speed_kmh": 60,
   "stop_match_radius_meters": 100,
   "stop_hit_grace_seconds": 10,
-  "position_history_minutes": 15,
+  "position_history_minutes": 5,
   "progress_lookbehind_stops": 2,
   "progress_lookahead_stops": 3,
   "start_fallback_max_stop_index": 0,
