@@ -21,3 +21,4 @@ discovery_result*.json
 .idea/
 .DS_Store
 Thumbs.db
+route_state.json
