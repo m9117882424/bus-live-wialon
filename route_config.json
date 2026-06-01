@@ -30,7 +30,8 @@
       "resource_name": "tsmbus",
       "zone_id": 73,
       "lat": 36.38609,
-      "lon": 33.940233
+      "lon": 33.940233,
+      "radius_meters": 250
     },
     {
       "order": 2,
