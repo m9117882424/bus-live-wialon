@@ -18,6 +18,7 @@ WIALON_TOKEN = os.getenv("WIALON_TOKEN", "").strip()
 TRACKED_BUS_ID_ENV = os.getenv("TRACKED_BUS_ID", "").strip()
 TRACKED_BUS_NAME_ENV = os.getenv("TRACKED_BUS_NAME", "").strip()
 ROUTE_CONFIG_PATH = os.getenv("ROUTE_CONFIG", "route_config.json")
+ROUTE_STATE_PATH = os.getenv("ROUTE_STATE_PATH", "route_state.json")
 STATIC_DIR = "static"
 
 ROUTE_PROGRESS = {
@@ -27,6 +28,43 @@ ROUTE_PROGRESS = {
     "recent_hits": {},
     "position_history": [],
 }
+
+
+def save_progress_state() -> None:
+    state = {
+        "date": ROUTE_PROGRESS.get("date"),
+        "last_passed_index": ROUTE_PROGRESS.get("last_passed_index", -1),
+        "current_index": ROUTE_PROGRESS.get("current_index"),
+        "saved_at": int(time.time()),
+    }
+
+    try:
+        tmp_path = f"{ROUTE_STATE_PATH}.tmp"
+        with open(tmp_path, "w", encoding="utf-8") as file:
+            json.dump(state, file, ensure_ascii=False, indent=2)
+        os.replace(tmp_path, ROUTE_STATE_PATH)
+    except Exception:
+        pass
+
+
+def load_progress_state(today_key: str) -> bool:
+    try:
+        with open(ROUTE_STATE_PATH, "r", encoding="utf-8") as file:
+            state = json.load(file)
+    except Exception:
+        return False
+
+    if state.get("date") != today_key:
+        return False
+
+    ROUTE_PROGRESS.update({
+        "date": today_key,
+        "last_passed_index": int(state.get("last_passed_index", -1)),
+        "current_index": state.get("current_index"),
+        "recent_hits": {},
+        "position_history": [],
+    })
+    return True
 
 
 class WialonError(Exception):
@@ -128,7 +166,7 @@ class WialonClient:
                 "itemId": unit_id,
                 "timeFrom": time_from,
                 "timeTo": time_to,
-                "flags": 0,
+                "flags": 1,
                 "flagsMask": 0,
                 "loadCount": load_count,
             },
@@ -169,10 +207,30 @@ def is_route_active(route_config: Dict[str, Any]) -> bool:
 
 def reset_progress_if_needed(route_active: bool) -> None:
     today_key = date.today().isoformat()
+
     if ROUTE_PROGRESS["date"] != today_key:
-        ROUTE_PROGRESS.update({"date": today_key, "last_passed_index": -1, "current_index": None, "recent_hits": {}, "position_history": []})
+        loaded = load_progress_state(today_key)
+        if not loaded:
+            ROUTE_PROGRESS.update({
+                "date": today_key,
+                "last_passed_index": -1,
+                "current_index": None,
+                "recent_hits": {},
+                "position_history": [],
+            })
+            save_progress_state()
+
     if not route_active:
-        ROUTE_PROGRESS.update({"last_passed_index": -1, "current_index": None, "recent_hits": {}, "position_history": []})
+        if ROUTE_PROGRESS.get("last_passed_index", -1) != -1 or ROUTE_PROGRESS.get("current_index") is not None:
+            ROUTE_PROGRESS.update({
+                "last_passed_index": -1,
+                "current_index": None,
+                "recent_hits": {},
+                "position_history": [],
+            })
+            save_progress_state()
+        else:
+            ROUTE_PROGRESS.update({"recent_hits": {}, "position_history": []})
 
 
 def normalize_text(value: str) -> str:
@@ -456,6 +514,8 @@ def update_ordered_progress(route_config: Dict[str, Any], stops: List[Dict[str, 
     if next_stop_index >= len(stops):
         next_stop_index = None
 
+    save_progress_state()
+
     return {
         "current_stop_index": current_stop_index,
         "next_stop_index": next_stop_index,
@@ -596,6 +656,7 @@ def health():
 @app.post("/api/reset-progress")
 def reset_progress():
     ROUTE_PROGRESS.update({"date": date.today().isoformat(), "last_passed_index": -1, "current_index": None, "recent_hits": {}, "position_history": []})
+    save_progress_state()
     return {"ok": True, "message": "Route progress reset", "route_progress": ROUTE_PROGRESS}
 
 
@@ -607,6 +668,7 @@ def set_progress(last_passed_index: int):
         return JSONResponse(status_code=400, content={"ok": False, "error": "No stops configured"})
     last_passed_index = max(-1, min(last_passed_index, len(stops) - 1))
     ROUTE_PROGRESS.update({"date": date.today().isoformat(), "last_passed_index": last_passed_index, "current_index": None, "recent_hits": {}, "position_history": []})
+    save_progress_state()
     next_stop = stops[last_passed_index + 1] if last_passed_index + 1 < len(stops) else None
     return {"ok": True, "message": "Route progress updated", "last_passed_index": last_passed_index, "next_stop": next_stop, "route_progress": ROUTE_PROGRESS}
 
