@@ -54,7 +54,8 @@
       "resource_name": "tsmbus",
       "zone_id": 56,
       "lat": 36.381571,
-      "lon": 33.938258
+      "lon": 33.938258,
+      "radius_meters": 180
     },
     {
       "order": 4,
@@ -65,7 +66,8 @@
       "resource_name": "tsmbus",
       "zone_id": 34,
       "lat": 36.379678,
-      "lon": 33.937647
+      "lon": 33.937647,
+      "radius_meters": 180
     },
     {
       "order": 5,
