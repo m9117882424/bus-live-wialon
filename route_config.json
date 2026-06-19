@@ -14,8 +14,8 @@
   "progress_lookbehind_stops": 2,
   "progress_lookahead_stops": 3,
   "start_fallback_max_stop_index": 0,
-  "active_from": "07:10",
-  "active_to": "08:30",
+  "active_from": "07:00",
+  "active_to": "08:20",
   "tracked_bus": {
     "unit_id": 601466760,
     "name": "33S8151(механизация)"
@@ -24,7 +24,7 @@
     {
       "order": 1,
       "name": "Vadi Market",
-      "planned_time": "07:20",
+      "planned_time": "07:10",
       "zone_name": "Vadi Market / Вади Маркет",
       "resource_id": 600894911,
       "resource_name": "tsmbus",
@@ -36,7 +36,7 @@
     {
       "order": 2,
       "name": "Carrefour market",
-      "planned_time": "07:22",
+      "planned_time": "07:12",
       "zone_name": "Carrefour market",
       "resource_id": 600894911,
       "resource_name": "tsmbus",
@@ -48,7 +48,7 @@
     {
       "order": 3,
       "name": "Stadyum / Стадион",
-      "planned_time": "07:28",
+      "planned_time": "07:18",
       "zone_name": "Stadyum / Стадион",
       "resource_id": 600894911,
       "resource_name": "tsmbus",
@@ -60,7 +60,7 @@
     {
       "order": 4,
       "name": "Kelebek",
-      "planned_time": "07:29",
+      "planned_time": "07:19",
       "zone_name": "Kelebek mobiliye / Келебек мебель",
       "resource_id": 600894911,
       "resource_name": "tsmbus",
@@ -72,7 +72,7 @@
     {
       "order": 5,
       "name": "Ekomini / Экомини",
-      "planned_time": "07:44",
+      "planned_time": "07:34",
       "zone_name": "Ekomini / Экомини",
       "resource_id": 600894911,
       "resource_name": "tsmbus",
@@ -83,7 +83,7 @@
     {
       "order": 6,
       "name": "A-101 kavşak / А-101 перекресток",
-      "planned_time": "07:45",
+      "planned_time": "07:35",
       "zone_name": "A-101 kavşak / А-101 перекресток",
       "resource_id": 600894911,
       "resource_name": "tsmbus",
@@ -94,7 +94,7 @@
     {
       "order": 7,
       "name": "Ziraat Bankası / Банк Зираат",
-      "planned_time": "07:46",
+      "planned_time": "07:36",
       "zone_name": "Ziraat bankası / Банк зираат",
       "resource_id": 600894911,
       "resource_name": "tsmbus",
@@ -105,7 +105,7 @@
     {
       "order": 8,
       "name": "Botanic site",
-      "planned_time": "07:48",
+      "planned_time": "07:38",
       "zone_name": "Botanic site",
       "resource_id": 600894911,
       "resource_name": "tsmbus",
@@ -116,7 +116,7 @@
     {
       "order": 9,
       "name": "Öğretmenevi / Дом учителя",
-      "planned_time": "07:49",
+      "planned_time": "07:39",
       "zone_name": "Öğretmenevi / Дом учителя",
       "resource_id": 600894911,
       "resource_name": "tsmbus",
@@ -127,7 +127,7 @@
     {
       "order": 10,
       "name": "İNTENS / ИНТЕНС",
-      "planned_time": "08:30",
+      "planned_time": "08:20",
       "zone_name": "İntens / Интенс",
       "resource_id": 600894911,
       "resource_name": "tsmbus",
