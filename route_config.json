@@ -15,10 +15,10 @@
   "progress_lookahead_stops": 3,
   "start_fallback_max_stop_index": 0,
   "active_from": "07:00",
-  "active_to": "08:20",
+  "active_to": "08:15",
   "tracked_bus": {
     "unit_id": 601466760,
-    "name": "33S8151(механизация)"
+    "name": "33S8379"
   },
   "stops": [
     {
@@ -35,20 +35,8 @@
     },
     {
       "order": 2,
-      "name": "Carrefour market",
-      "planned_time": "07:12",
-      "zone_name": "Carrefour market",
-      "resource_id": 600894911,
-      "resource_name": "tsmbus",
-      "zone_id": 75,
-      "lat": 36.385199,
-      "lon": 33.937082,
-      "radius_meters": 30
-    },
-    {
-      "order": 3,
       "name": "Stadyum / Стадион",
-      "planned_time": "07:18",
+      "planned_time": "07:12",
       "zone_name": "Stadyum / Стадион",
       "resource_id": 600894911,
       "resource_name": "tsmbus",
@@ -58,21 +46,9 @@
       "radius_meters": 180
     },
     {
-      "order": 4,
-      "name": "Kelebek",
-      "planned_time": "07:19",
-      "zone_name": "Kelebek mobiliye / Келебек мебель",
-      "resource_id": 600894911,
-      "resource_name": "tsmbus",
-      "zone_id": 34,
-      "lat": 36.379678,
-      "lon": 33.937647,
-      "radius_meters": 180
-    },
-    {
-      "order": 5,
+      "order": 3,
       "name": "Ekomini / Экомини",
-      "planned_time": "07:34",
+      "planned_time": "07:25",
       "zone_name": "Ekomini / Экомини",
       "resource_id": 600894911,
       "resource_name": "tsmbus",
@@ -81,31 +57,9 @@
       "lon": 33.883009
     },
     {
-      "order": 6,
-      "name": "A-101 kavşak / А-101 перекресток",
-      "planned_time": "07:35",
-      "zone_name": "A-101 kavşak / А-101 перекресток",
-      "resource_id": 600894911,
-      "resource_name": "tsmbus",
-      "zone_id": 3,
-      "lat": 36.319959,
-      "lon": 33.879904
-    },
-    {
-      "order": 7,
-      "name": "Ziraat Bankası / Банк Зираат",
-      "planned_time": "07:36",
-      "zone_name": "Ziraat bankası / Банк зираат",
-      "resource_id": 600894911,
-      "resource_name": "tsmbus",
-      "zone_id": 66,
-      "lat": 36.318445,
-      "lon": 33.877798
-    },
-    {
-      "order": 8,
+      "order": 4,
       "name": "Botanic site",
-      "planned_time": "07:38",
+      "planned_time": "07:28",
       "zone_name": "Botanic site",
       "resource_id": 600894911,
       "resource_name": "tsmbus",
@@ -114,9 +68,9 @@
       "lon": 33.875546
     },
     {
-      "order": 9,
+      "order": 5,
       "name": "Öğretmenevi / Дом учителя",
-      "planned_time": "07:39",
+      "planned_time": "07:30",
       "zone_name": "Öğretmenevi / Дом учителя",
       "resource_id": 600894911,
       "resource_name": "tsmbus",
@@ -125,9 +79,9 @@
       "lon": 33.872665
     },
     {
-      "order": 10,
+      "order": 6,
       "name": "İNTENS / ИНТЕНС",
-      "planned_time": "08:20",
+      "planned_time": "08:15",
       "zone_name": "İntens / Интенс",
       "resource_id": 600894911,
       "resource_name": "tsmbus",
