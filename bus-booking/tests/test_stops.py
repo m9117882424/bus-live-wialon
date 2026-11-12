@@ -96,7 +96,10 @@ with tempfile.TemporaryDirectory(prefix='bus-booking-test-') as tmp:
             image = Image.open(io.BytesIO(response.content)) if fmt == 'jpg' else PdfReader(io.BytesIO(response.content)).pages[0].images[0].image
             assert image.size == (1080, 1920)
             qr = zxingcpp.read_barcode(image)
-            assert qr and json.loads(Fernet(env['BUS_FERNET_KEY']).decrypt(qr.text.encode()))['card'] == '123456'
+            assert qr and qr.text.startswith(root+'/bus/check/')
+            checked=requests.get(qr.text,timeout=5);checked.raise_for_status()
+            assert '123456' in checked.text and 'ПОСАДКА РАЗРЕШЕНА' in checked.text
+            assert requests.post(base+'/api/admin/verify',auth=auth,json={'token':qr.text},timeout=5).json()['card']=='123456'
         r = requests.put(base + f'/api/admin/stops/{stop_id}', auth=auth, timeout=5,
                          json={'name_ru': 'Новая остановка', 'name_tr': 'Yeni durak', 'active': False})
         r.raise_for_status()
