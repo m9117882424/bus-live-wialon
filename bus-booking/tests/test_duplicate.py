@@ -61,8 +61,10 @@ with tempfile.TemporaryDirectory(prefix='bus-duplicate-') as temp:
   fresh=book(alt);fresh.raise_for_status();token3=fresh.json()['url'].rsplit('/',1)[1]
   with sqlite3.connect(dbpath) as db:
    db.execute('UPDATE legs SET date=? WHERE booking_id=(SELECT id FROM bookings WHERE token=?)',(yesterday,token3));db.commit()
-  assert not find().json()['items']
+  # The still-valid confirmation remains discoverable after departure, but no longer blocks a new trip.
+  assert len(find().json()['items'])==1
   assert book(out).status_code==200
+  assert len(find().json()['items'])==2  # A recent and a newly booked confirmation can coexist.
   print('PASS: atomic duplicate prevention, lookup, secure cancellation and completed-trip handling')
  finally:
   proc.terminate();proc.wait(timeout=10)
