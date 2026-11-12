@@ -87,7 +87,14 @@ def startup():
 @app.middleware('http')
 async def protect(req, call_next):
  path=req.url.path
- if path=='/bus-test' or path.startswith('/bus-test/'):
+ origin=req.headers.get('origin')
+ forbidden=False
+ if req.method in ('POST','PUT','PATCH','DELETE') and (origin or req.headers.get('sec-fetch-site')=='cross-site'):
+  allowed={str(req.base_url).rstrip('/'),os.environ.get('BUS_PUBLIC_URL','').rstrip('/')}
+  allowed.update(x.strip().rstrip('/') for x in os.environ.get('BUS_QR_ALLOWED_ORIGINS','').split(','))
+  forbidden=not origin or origin.rstrip('/') not in allowed
+ if forbidden: res=JSONResponse({'detail':'Запрос с другого сайта запрещён / Başka siteden isteğe izin verilmiyor'},status_code=403)
+ elif path=='/bus-test' or path.startswith('/bus-test/'):
   suffix=path[len('/bus-test'):] or '/'
   target=BASE+suffix+('?' + req.url.query if req.url.query else '')
   res=RedirectResponse(target,status_code=308)
@@ -554,10 +561,12 @@ class Verify(BaseModel): token:str
 @app.post(BASE+'/api/admin/verify',dependencies=[Depends(admin)])
 def verify(v:Verify,request:Request):
  value=v.token.strip()
- try: parsed=urlsplit(value); origin=urlsplit(qr_origin(request))
+ try:
+  parsed=urlsplit(value)
+  origins=[urlsplit(x.strip().rstrip('/')) for x in [qr_origin(request)]+os.environ.get('BUS_QR_ALLOWED_ORIGINS','').split(',') if x.strip()]
  except ValueError: raise HTTPException(400,'Недействительный QR / Geçersiz QR')
  match=re.fullmatch(re.escape(BASE)+r'/check/(BUS-[0-9A-F]{10})/([A-Za-z0-9_-]{22})',parsed.path)
- if parsed.scheme in ('https','http') and parsed.scheme==origin.scheme and parsed.netloc.lower()==origin.netloc.lower() and not parsed.query and not parsed.fragment and match:
+ if parsed.scheme in ('https','http') and any(parsed.scheme==o.scheme and parsed.netloc.lower()==o.netloc.lower() for o in origins) and not parsed.query and not parsed.fragment and match:
   b,legs=checked_booking(*match.groups())
   return {'code':b['code'],'card':b['card'],'fortune':b['fortune'],'fortune_tr':fortune_tr(b['fortune']),'legs':legs}
  try: data=json.loads(cipher.decrypt(value.encode()).decode())

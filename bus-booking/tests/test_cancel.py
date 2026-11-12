@@ -27,7 +27,8 @@ with tempfile.TemporaryDirectory(prefix='bus-cancel-test-') as tmp:
     dbpath = str(Path(tmp) / 'test.sqlite')
     env = os.environ.copy()
     env.update(BUS_DB=dbpath, BUS_ADMIN_PASSWORD='test-only-password',
-               BUS_FERNET_KEY=Fernet.generate_key().decode(), BUS_INITIAL_CARDS='123456,654321')
+               BUS_FERNET_KEY=Fernet.generate_key().decode(), BUS_INITIAL_CARDS='123456,654321',
+               BUS_QR_ALLOWED_ORIGINS='https://legacy.example')
     proc = subprocess.Popen([sys.executable, '-m', 'uvicorn', 'app:app', '--host', '127.0.0.1',
                              '--port', str(port), '--no-access-log'], cwd=ROOT, env=env,
                             stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
@@ -83,8 +84,16 @@ with tempfile.TemporaryDirectory(prefix='bus-cancel-test-') as tmp:
         assert requests.post(base+'/api/admin/verify',auth=auth,json={'token':altered},timeout=5).status_code==404
         assert requests.post(base+'/api/admin/verify',auth=auth,json={'token':original_qr.replace(host,'https://elsewhere.example')},timeout=5).status_code==400
         assert requests.post(base + '/api/admin/verify',auth=auth,json={'token':original_qr},timeout=5).status_code==200
+        old_url=original_qr.replace(host,'https://legacy.example')
+        assert requests.post(base+'/api/admin/verify',auth=auth,json={'token':old_url},timeout=5).status_code==200
         assert passenger_cancel(token,False).status_code==400
         assert requests.post(base + '/api/admin/bookings/' + code + '/cancel',json={'confirm':True},timeout=5).status_code==401
+        assert requests.post(base+'/api/ticket/'+token+'/cancel',headers={'Origin':'https://elsewhere.example'},json={'confirm':True},timeout=5).status_code==403
+        assert requests.post(base+'/api/admin/bookings/'+code+'/cancel',auth=auth,headers={'Origin':'null'},json={'confirm':True},timeout=5).status_code==403
+        assert requests.post(base+'/api/ticket/'+token+'/cancel',headers={'Sec-Fetch-Site':'cross-site'},json={'confirm':True},timeout=5).status_code==403
+        assert requests.post(base+'/api/ticket/'+token+'/cancel',headers={'Origin':host},json={'confirm':False},timeout=5).status_code==400
+        assert requests.post(base+'/api/ticket/'+token+'/cancel',headers={'Origin':'https://legacy.example'},json={'confirm':False},timeout=5).status_code==400
+        assert requests.get(base+'/api/ticket/'+token+'/comments',timeout=5).json()['can_cancel']
         legacy=requests.post(host+'/bus-test/api/ticket/'+token+'/cancel',json={'confirm':True},timeout=5)
         assert legacy.status_code==200 and '/bus/api/ticket/' in legacy.url
         ticket=requests.get(host+url,timeout=5);ticket.raise_for_status();assert '"cancelled": true' in ticket.text and '"can_cancel": false' in ticket.text
@@ -93,6 +102,7 @@ with tempfile.TemporaryDirectory(prefix='bus-cancel-test-') as tmp:
         for fmt in ('jpg','pdf'):
             assert requests.get(host+url+'/download/'+fmt,timeout=5).status_code==410
         assert requests.post(base+'/api/admin/verify',auth=auth,json={'token':original_qr},timeout=5).status_code==410
+        assert requests.post(base+'/api/admin/verify',auth=auth,json={'token':old_url},timeout=5).status_code==410
         for direction in ('forward','reverse'):
             trips=requests.get(base+'/api/trips',params={'date':tomorrow,'direction':direction},timeout=5).json()
             assert trips[0]['free']==2
