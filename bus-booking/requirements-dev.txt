@@ -1,0 +1,4 @@
+-r requirements.txt
+requests==2.33.1
+pypdf==7.0.1
+zxing-cpp==3.1.1
