@@ -24,6 +24,6 @@ function setup(script,serverReply){
  assert.notStrictEqual(started,js);
  let c=setup(started,{});
  assert.strictEqual(c.nodes.cancelTicketButton.style.display,'none');
- assert(c.nodes.cancelNote.textContent.includes('После отправления'));
+ assert(c.nodes.cancelNote.textContent.includes('Все рейсы уже отправились'));
  console.log('PASS: passenger cancellation UI, dispatcher cancellation refresh and departure lock');
 })().catch(e=>{console.error(e);process.exit(1)});
