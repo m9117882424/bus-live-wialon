@@ -251,8 +251,10 @@ def public_check(code:str,signature:str):
   return ru if ru==tr else ru+' / '+tr
  route_html=''.join('<div class="card"><b>'+point(x['origin'])+' → '+point(x['destination'])+'</b><p>'+html.escape(x['date'])+' · <strong>'+html.escape(x['departure'][:5])+'</strong></p><span class="muted">Запись / Kayıt: '+str(x['sequence'])+' / '+str(x['capacity'])+'</span>'+('<p>'+html.escape(x['comment'])+'</p>' if x['comment'] else '')+'</div>' for x in legs)
  direction='⇄ В ОБЕ СТОРОНЫ / GİDİŞ-DÖNÜŞ' if len(legs)>1 else '→ В ОДНУ СТОРОНУ / TEK YÖN'
- page='<!doctype html><html><head>'+STYLE+'<title>Подтверждение / Onay</title></head><body><header><span class="brand"><img src="/bus/logo.png" alt="TSM ENERJİ"><span class="brand-label">🚌 BUS</span></span></header><main><div class="box"><div class="success">✓ ПОСАДКА РАЗРЕШЕНА<br>BİNİŞ ONAYLANDI</div><div class="direction">'+direction+'</div>'+route_html+'<p><b>Пропуск / Kart:</b> '+html.escape(b['card'])+'</p><p><b>Бронь / Rezervasyon:</b> '+html.escape(b['code'])+'</p><div class="fortune"><b>Пожелание / Dilek</b><br>'+html.escape(b['fortune'])+'<br>'+html.escape(fortune_tr(b['fortune']))+'</div><button class="secondary" id="cancelOpen" onclick="openCancel()">Отменить бронь / Rezervasyonu iptal et</button><div id="cancelForm" style="display:none"><p class="muted">Для отмены вставьте вашу личную ссылку на подтверждение / İptal için kişisel onay bağlantınızı girin.</p><input id="cancelLink" type="url" autocomplete="off"><button style="margin-top:10px" onclick="cancelExisting()">Подтвердить отмену / İptali onayla</button></div><div id="cancelMsg"></div></div></main>'
- return page+CHECK_SCRIPT.replace('/*CARD*/',json.dumps(b['card']).replace('<','\\u003c')).replace('/*CODE*/',json.dumps(b['code'])).replace('/*CAN_CANCEL*/',json.dumps(is_cancellable(b,legs)))+'</body></html>'
+ path=BASE+'/check/'+code+'/'+signature
+ lang=b['lang'] if b['lang'] in ('ru','tr') else 'ru'
+ page='<!doctype html><html><head>'+STYLE+'<title>Подтверждение / Onay</title></head><body><header><span class="brand"><img src="/bus/logo.png" alt="TSM ENERJİ"><span class="brand-label">🚌 BUS</span></span></header><main><div class="box"><div class="success">✓ ПОСАДКА РАЗРЕШЕНА<br>BİNİŞ ONAYLANDI</div><div class="direction">'+direction+'</div>'+route_html+'<p><b>Пропуск / Kart:</b> '+html.escape(b['card'])+'</p><p><b>Бронь / Rezervasyon:</b> '+html.escape(b['code'])+'</p><div class="fortune"><b>Пожелание / Dilek</b><br>'+html.escape(b['fortune'])+'<br>'+html.escape(fortune_tr(b['fortune']))+'</div><img class="qr" src="'+path+'/qr" alt="QR"><label for="fileLang">Язык файла / Dosya dili</label><select id="fileLang"><option value="ru"'+(' selected' if lang=='ru' else '')+'>Русский</option><option value="tr"'+(' selected' if lang=='tr' else '')+'>Türkçe</option></select><div class="row" style="margin:10px 0"><button onclick="downloadCheck(\'pdf\')">↓ PDF</button><button onclick="downloadCheck(\'jpg\')">↓ JPG</button></div><button class="secondary" id="cancelOpen" onclick="openCancel()">Отменить бронь / Rezervasyonu iptal et</button><div id="cancelForm" style="display:none"><p class="muted">Для отмены вставьте вашу личную ссылку на подтверждение / İptal için kişisel onay bağlantınızı girin.</p><input id="cancelLink" type="url" autocomplete="off"><button style="margin-top:10px" onclick="cancelExisting()">Подтвердить отмену / İptali onayla</button></div><div id="cancelMsg"></div></div></main>'
+ return page+CHECK_SCRIPT.replace('/*CARD*/',json.dumps(b['card']).replace('<','\\u003c')).replace('/*CODE*/',json.dumps(b['code'])).replace('/*SIGNATURE*/',json.dumps(signature)).replace('/*CAN_CANCEL*/',json.dumps(is_cancellable(b,legs)))+'</body></html>'
 def qr_image(b,legs,url,max_pixels=None):
  q=qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_L,box_size=5,border=4); q.add_data(url); q.make(fit=True)
  if max_pixels: q.box_size=max(1,max_pixels//(q.modules_count+q.border*2))
@@ -330,11 +332,20 @@ def ticket_image(b,legs,url,stop_map=None):
 @app.get(BASE+'/ticket/{token}/download/{fmt}')
 def download(token:str,fmt:str,request:Request,lang:str=''):
  if fmt not in ['jpg','pdf']: raise HTTPException(404)
- b,legs=ticketdata(token); b['lang']=lang if lang in ['ru','tr'] else b['lang']; im=ticket_image(b,legs,qr_url(request,b),stop_translations()); out=io.BytesIO()
+ b,legs=ticketdata(token);return render_download(b,legs,fmt,request,lang)
+def render_download(b,legs,fmt,request,lang=''):
+ b['lang']=lang if lang in ['ru','tr'] else b['lang']; im=ticket_image(b,legs,qr_url(request,b),stop_translations()); out=io.BytesIO()
  if fmt=='jpg': im.save(out,'JPEG',quality=92); typ='image/jpeg'
  else:
   cv=canvas.Canvas(out,pagesize=(324,576)); cv.drawImage(ImageReader(im),0,0,width=324,height=576); cv.showPage(); cv.save(); typ='application/pdf'
  return Response(out.getvalue(),media_type=typ,headers={'Content-Disposition':f'attachment; filename="{b["code"]}.{fmt}"'})
+@app.get(BASE+'/check/{code}/{signature}/qr')
+def check_qr(code:str,signature:str,request:Request):
+ b,legs=checked_booking(code,signature); out=io.BytesIO();qr_image(b,legs,qr_url(request,b)).save(out,format='PNG');return Response(out.getvalue(),media_type='image/png')
+@app.get(BASE+'/check/{code}/{signature}/download/{fmt}')
+def check_download(code:str,signature:str,fmt:str,request:Request,lang:str=''):
+ if fmt not in ('jpg','pdf'):raise HTTPException(404)
+ b,legs=checked_booking(code,signature);return render_download(b,legs,fmt,request,lang)
 @app.get(BASE+'/api/admin/whitelist',dependencies=[Depends(admin)])
 def whitelist_get():
  with db() as c: return {'cards':[r['card'] for r in c.execute('SELECT card FROM allowed_cards ORDER BY card')]}
@@ -616,7 +627,8 @@ def verify(v:Verify,request:Request):
   if data!=expected: raise HTTPException(400,'Данные не совпадают / Bilgiler uyuşmuyor')
   return {'code':b['code'],'card':b['card'],'fortune':b['fortune'],'fortune_tr':fortune_tr(b['fortune']),'legs':legs}
 CHECK_SCRIPT='''<script>
-const checkCard=/*CARD*/,checkCode=/*CODE*/,checkCanCancel=/*CAN_CANCEL*/;
+const checkCard=/*CARD*/,checkCode=/*CODE*/,checkSignature=/*SIGNATURE*/,checkCanCancel=/*CAN_CANCEL*/;
+function downloadCheck(fmt){location.href='/bus/check/'+encodeURIComponent(checkCode)+'/'+encodeURIComponent(checkSignature)+'/download/'+fmt+'?lang='+encodeURIComponent(document.getElementById('fileLang').value)}
 function storedToken(){try{return localStorage.getItem('bus-ticket:'+checkCard)||''}catch(e){return ''}}
 async function openCancel(){let t=storedToken();if(t){await cancelExisting(t)}else{cancelForm.style.display='block';cancelLink.focus()}}
 async function cancelExisting(raw){let token=typeof raw==='string'?raw:'';if(!token){try{let u=new URL(cancelLink.value.trim(),location.href);token=(u.pathname.match(/^\\/bus\\/ticket\\/([A-Za-z0-9_-]{20,100})\\/?$/)||[])[1]||''}catch(e){}}

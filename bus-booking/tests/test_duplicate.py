@@ -3,8 +3,10 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
-import os, shutil, socket, sqlite3, subprocess, sys, tempfile, time
-import requests
+import os, shutil, socket, sqlite3, subprocess, sys, tempfile, time, io
+import requests, zxingcpp
+from PIL import Image
+from pypdf import PdfReader
 from cryptography.fernet import Fernet
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -39,6 +41,13 @@ with tempfile.TemporaryDirectory(prefix='bus-duplicate-') as temp:
   successful=next(r for r in responses if r.status_code==200).json();token=successful['url'].rsplit('/',1)[1]
   items=find().json()['items'];assert len(items)==1 and token not in str(items) and items[0]['url'].startswith('/bus/check/')
   code=items[0]['code'];page=requests.get(host+items[0]['url'],timeout=5);page.raise_for_status();assert token not in page.text and '123456' in page.text
+  assert items[0]['url']+'/qr' in page.text and 'downloadCheck(' in page.text
+  png=requests.get(host+items[0]['url']+'/qr',timeout=10);png.raise_for_status()
+  assert zxingcpp.read_barcode(Image.open(io.BytesIO(png.content))).text==host+items[0]['url']
+  for fmt in ('pdf','jpg'):
+   result=requests.get(host+items[0]['url']+'/download/'+fmt,params={'lang':'tr'},timeout=10);result.raise_for_status()
+   image=Image.open(io.BytesIO(result.content)) if fmt=='jpg' else PdfReader(io.BytesIO(result.content)).pages[0].images[0].image
+   assert zxingcpp.read_barcode(image).text==host+items[0]['url']
   if node:=shutil.which('node'):
    sample=Path(temp)/'check.html';sample.write_text(page.text,encoding='utf-8');subprocess.run([node,str(ROOT/'tests/test_duplicate_ui.js'),str(sample)],check=True)
    home_sample=Path(temp)/'home.html';home_sample.write_text(home,encoding='utf-8');subprocess.run([node,str(ROOT/'tests/test_duplicate_home.js'),str(home_sample)],check=True)
@@ -49,6 +58,8 @@ with tempfile.TemporaryDirectory(prefix='bus-duplicate-') as temp:
   assert requests.post(cancel,json={'confirm':True,'card':'123456','code':'BUS-0000000000'},timeout=5).status_code==404
   assert len(find().json()['items'])==1
   assert requests.post(cancel,json={'confirm':True,'card':'123456','code':code},timeout=5).status_code==200
+  assert requests.get(host+items[0]['url']+'/qr',timeout=5).status_code==410
+  assert requests.get(host+items[0]['url']+'/download/pdf',timeout=5).status_code==410
   assert not find().json()['items']
   trip=book(out,back);trip.raise_for_status();token2=trip.json()['url'].rsplit('/',1)[1]
   with sqlite3.connect(dbpath) as db:
