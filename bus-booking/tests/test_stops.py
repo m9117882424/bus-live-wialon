@@ -29,7 +29,7 @@ with tempfile.TemporaryDirectory(prefix='bus-booking-test-') as tmp:
     proc = subprocess.Popen([sys.executable, '-m', 'uvicorn', 'app:app', '--host', '127.0.0.1',
                              '--port', str(port), '--no-access-log'], cwd=ROOT, env=env,
                             stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-    base = f'http://127.0.0.1:{port}/bus-test'
+    base = f'http://127.0.0.1:{port}/bus'
     auth = ('admin', 'test-only-password')
     try:
         for _ in range(100):
@@ -74,6 +74,14 @@ with tempfile.TemporaryDirectory(prefix='bus-booking-test-') as tmp:
                                 'forward': 1, 'reverse': 2, 'reverse_date': day, 'direction': 'forward', 'lang': 'tr'})
         booking.raise_for_status()
         token = booking.json()['url'].rsplit('/', 1)[1]
+        root = f'http://127.0.0.1:{port}'
+        old_ticket = requests.get(root + '/bus-test/ticket/' + token + '?lang=tr', allow_redirects=False, timeout=5)
+        assert old_ticket.status_code == 308 and old_ticket.headers['location'] == '/bus/ticket/' + token + '?lang=tr'
+        assert requests.get(root + '/bus-test/ticket/' + token, timeout=5).status_code == 200
+        legacy_post = requests.post(root + '/bus-test/api/book', json={'card': '999998', 'date': day, 'forward': 1}, timeout=5)
+        assert legacy_post.status_code == 403
+        assert '/bus/api/book' in legacy_post.url
+        assert 'Тестовый стенд' not in requests.get(base + '/', timeout=5).text
         r = requests.put(base + f'/api/admin/stops/{stop_id}', auth=auth, timeout=5,
                          json={'name_ru': 'Новая остановка', 'name_tr': 'Yeni durak', 'active': True})
         r.raise_for_status()

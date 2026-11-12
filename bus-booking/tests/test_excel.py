@@ -23,7 +23,7 @@ with tempfile.TemporaryDirectory(prefix='bus-excel-test-') as tmp:
     proc = subprocess.Popen([sys.executable, '-m', 'uvicorn', 'app:app', '--host', '127.0.0.1',
                              '--port', str(port), '--no-access-log'], cwd=ROOT, env=env,
                             stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-    base = f'http://127.0.0.1:{port}/bus-test'
+    base = f'http://127.0.0.1:{port}/bus'
     auth = ('admin', 'test-only-password')
     try:
         for _ in range(100):
