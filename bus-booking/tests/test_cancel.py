@@ -77,7 +77,7 @@ with tempfile.TemporaryDirectory(prefix='bus-cancel-test-') as tmp:
         assert original_qr.startswith(host+'/bus/check/') and token not in original_qr
         checked=requests.get(original_qr,timeout=5);checked.raise_for_status()
         assert 'ПОСАДКА РАЗРЕШЕНА' in checked.text and '123456' in checked.text
-        assert 'Отменить бронь' not in checked.text
+        assert token not in checked.text  # QR lookup never discloses the cancellation capability.
         assert entry['decoded']['fortune'] in checked.text and entry['fortune_tr'] in checked.text
         altered=original_qr[:-1]+('A' if original_qr[-1]!='A' else 'B')
         assert requests.get(altered,timeout=5).status_code==404
@@ -164,10 +164,12 @@ with tempfile.TemporaryDirectory(prefix='bus-cancel-test-') as tmp:
         current=book('123456',race);current.raise_for_status();race_token=current.json()['url'].rsplit('/',1)[1]
         with ThreadPoolExecutor(max_workers=2) as pool:
             a=pool.submit(passenger_cancel,race_token);b=pool.submit(book,'654321',race)
-            cancelled,booked=a.result().status_code,b.result().status_code
+            cancelled,booked_response=a.result().status_code,b.result()
+            booked=booked_response.status_code
         assert cancelled==200 and booked in (200,409),(cancelled,booked)
         with sqlite3.connect(dbpath) as db:
             assert db.execute('SELECT COUNT(*) FROM legs WHERE route_id=?',(race,)).fetchone()[0] <= 1
+        if booked==200:assert passenger_cancel(booked_response.json()['url'].rsplit('/',1)[1]).status_code==200
         # Passenger and dispatcher can cancel simultaneously without duplicate archived rows.
         another=add_route('Двойная отмена','Камп','Магазин','forward','19:00')
         x=book('123456',another);x.raise_for_status();token2=x.json()['url'].rsplit('/',1)[1]
