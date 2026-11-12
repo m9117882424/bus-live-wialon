@@ -73,6 +73,14 @@ with tempfile.TemporaryDirectory(prefix='bus-cancel-test-') as tmp:
             subprocess.run([node,str(ROOT/'tests'/'test_cancel_ui.js'),str(sample)],check=True)
         qr_bytes=requests.get(host + url + '/qr',timeout=10).content
         original_qr=zxingcpp.read_barcode(Image.open(io.BytesIO(qr_bytes))).text
+        assert original_qr.startswith(host+'/bus/check/') and token not in original_qr
+        checked=requests.get(original_qr,timeout=5);checked.raise_for_status()
+        assert 'ПОСАДКА РАЗРЕШЕНА' in checked.text and '123456' in checked.text
+        assert 'Отменить бронь' not in checked.text and 'Пусть дорога' not in checked.text
+        altered=original_qr[:-1]+('A' if original_qr[-1]!='A' else 'B')
+        assert requests.get(altered,timeout=5).status_code==404
+        assert requests.post(base+'/api/admin/verify',auth=auth,json={'token':altered},timeout=5).status_code==404
+        assert requests.post(base+'/api/admin/verify',auth=auth,json={'token':original_qr.replace(host,'https://elsewhere.example')},timeout=5).status_code==400
         assert requests.post(base + '/api/admin/verify',auth=auth,json={'token':original_qr},timeout=5).status_code==200
         assert passenger_cancel(token,False).status_code==400
         assert requests.post(base + '/api/admin/bookings/' + code + '/cancel',json={'confirm':True},timeout=5).status_code==401
@@ -80,6 +88,7 @@ with tempfile.TemporaryDirectory(prefix='bus-cancel-test-') as tmp:
         assert legacy.status_code==200 and '/bus/api/ticket/' in legacy.url
         ticket=requests.get(host+url,timeout=5);ticket.raise_for_status();assert '"cancelled": true' in ticket.text and '"can_cancel": false' in ticket.text
         assert requests.get(host+url+'/qr',timeout=5).status_code==410
+        cancelled_check=requests.get(original_qr,timeout=5);assert cancelled_check.status_code==410 and 'БРОНЬ ОТМЕНЕНА' in cancelled_check.text
         for fmt in ('jpg','pdf'):
             assert requests.get(host+url+'/download/'+fmt,timeout=5).status_code==410
         assert requests.post(base+'/api/admin/verify',auth=auth,json={'token':original_qr},timeout=5).status_code==410
@@ -151,6 +160,7 @@ with tempfile.TemporaryDirectory(prefix='bus-cancel-test-') as tmp:
         # Passenger and dispatcher can cancel simultaneously without duplicate archived rows.
         another=add_route('Двойная отмена','Камп','Магазин','forward','19:00')
         x=book('123456',another);x.raise_for_status();token2=x.json()['url'].rsplit('/',1)[1]
+        url2=zxingcpp.read_barcode(Image.open(io.BytesIO(requests.get(base+'/ticket/'+token2+'/qr',timeout=10).content))).text
         entries=item_for_card('123456','active');code2=next(x['decoded']['booking'] for x in entries if x['decoded']['legs'][0]['time']=='19:00')
         with ThreadPoolExecutor(max_workers=2) as pool:
             a=pool.submit(passenger_cancel,token2);b=pool.submit(admin_cancel,code2)
@@ -162,6 +172,8 @@ with tempfile.TemporaryDirectory(prefix='bus-cancel-test-') as tmp:
             expired=(datetime.now(ZoneInfo('Europe/Istanbul'))-timedelta(minutes=1)).isoformat()
             db.execute('UPDATE bookings SET expires=? WHERE code=?',(expired,code2));db.commit()
         assert requests.get(base+'/ticket/'+token2,timeout=5).status_code==404
+        assert requests.get(url2,timeout=5).status_code==404
+        assert requests.post(base+'/api/admin/verify',auth=auth,json={'token':url2},timeout=5).status_code==404
         assert requests.get(base+'/api/admin/qrcodes',auth=auth,params={'q':code2,'status':'cancelled'},timeout=5).json()['total']==1
         # Both scripts must parse, including the actual dynamically generated passenger confirmation.
         if node := shutil.which('node'):

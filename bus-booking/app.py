@@ -1,6 +1,7 @@
-import os, sqlite3, secrets, json, io, base64, html, calendar, threading, textwrap
+import os, sqlite3, secrets, json, io, base64, html, calendar, threading, textwrap, hmac, hashlib, re
 from datetime import datetime, date, timedelta, time
 from pathlib import Path
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 from contextlib import contextmanager
 from fastapi import FastAPI, Request, HTTPException, Depends
@@ -181,10 +182,36 @@ def stop_translations():
   translated={x['alias']:x['name_tr'] for x in c.execute('SELECT alias,name_tr FROM stop_aliases')}
   translated.update({x['name_ru']:x['name_tr'] for x in c.execute('SELECT name_ru,name_tr FROM stops')})
   return translated
-def qrtoken(b,legs):
- return cipher.encrypt(json.dumps(qrdata(b,legs),ensure_ascii=False,separators=(',',':')).encode()).decode()
-def qr_image(b,legs,max_pixels=None):
- q=qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_L,box_size=5,border=4); q.add_data(qrtoken(b,legs)); q.make(fit=True)
+def qr_signature(code):
+ digest=hmac.new(os.environ['BUS_FERNET_KEY'].encode(),b'bus-qr-v1:'+code.encode(),hashlib.sha256).digest()[:16]
+ return base64.urlsafe_b64encode(digest).decode().rstrip('=')
+def qr_origin(request):
+ return os.environ.get('BUS_PUBLIC_URL',str(request.base_url).rstrip('/')).rstrip('/')
+def qr_url(request,b):
+ return qr_origin(request)+BASE+'/check/'+b['code']+'/'+qr_signature(b['code'])
+def checked_booking(code,signature):
+ if not re.fullmatch(r'BUS-[0-9A-F]{10}',code) or not re.fullmatch(r'[A-Za-z0-9_-]{22}',signature) or not secrets.compare_digest(signature,qr_signature(code)):
+  raise HTTPException(404,'Подтверждение не найдено / Onay bulunamadı')
+ with db() as c:
+  cleanup(c); c.execute('BEGIN'); b=c.execute('SELECT * FROM bookings WHERE code=?',(code,)).fetchone()
+  if not b or b['token'] is None: raise HTTPException(404,'Срок подтверждения истёк / Onay süresi doldu')
+  if b['cancelled_at']: raise HTTPException(410,'Бронь отменена / Rezervasyon iptal edildi')
+  return dict(b),booking_legs(c,b)
+@app.get(BASE+'/check/{code}/{signature}',response_class=HTMLResponse)
+def public_check(code:str,signature:str):
+ try: b,legs=checked_booking(code,signature)
+ except HTTPException as exc:
+  heading='БРОНЬ ОТМЕНЕНА / REZERVASYON İPTAL EDİLDİ' if exc.status_code==410 else 'ПОДТВЕРЖДЕНИЕ НЕДОСТУПНО / ONAY KULLANILAMIYOR'
+  return HTMLResponse('<!doctype html><html><head>'+STYLE+'</head><body><main><div class="alert">'+heading+'</div></main></body></html>',status_code=exc.status_code)
+ translations=stop_translations()
+ def point(value):
+  ru=html.escape(value); tr=html.escape(translations.get(value,value))
+  return ru if ru==tr else ru+' / '+tr
+ route_html=''.join('<div class="card"><b>'+point(x['origin'])+' → '+point(x['destination'])+'</b><p>'+html.escape(x['date'])+' · <strong>'+html.escape(x['departure'][:5])+'</strong></p><span class="muted">Запись / Kayıt: '+str(x['sequence'])+' / '+str(x['capacity'])+'</span>'+('<p>'+html.escape(x['comment'])+'</p>' if x['comment'] else '')+'</div>' for x in legs)
+ direction='⇄ В ОБЕ СТОРОНЫ / GİDİŞ-DÖNÜŞ' if len(legs)>1 else '→ В ОДНУ СТОРОНУ / TEK YÖN'
+ return '<!doctype html><html><head>'+STYLE+'<meta http-equiv="refresh" content="30"><title>Подтверждение / Onay</title></head><body><header><span class="brand"><img src="/bus/logo.png" alt="TSM ENERJİ"><span class="brand-label">🚌 BUS</span></span></header><main><div class="box"><div class="success">✓ ПОСАДКА РАЗРЕШЕНА<br>BİNİŞ ONAYLANDI</div><div class="direction">'+direction+'</div>'+route_html+'<p><b>Пропуск / Kart:</b> '+html.escape(b['card'])+'</p><p><b>Бронь / Rezervasyon:</b> '+html.escape(b['code'])+'</p></div></main></body></html>'
+def qr_image(b,legs,url,max_pixels=None):
+ q=qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_L,box_size=5,border=4); q.add_data(url); q.make(fit=True)
  if max_pixels: q.box_size=max(1,max_pixels//(q.modules_count+q.border*2))
  return q.make_image(fill_color='black',back_color='white').convert('RGB')
 @app.get(BASE+'/ticket/{token}',response_class=HTMLResponse)
@@ -194,9 +221,9 @@ def ticket(token:str):
 def ticket_comments(token:str):
  b,legs=ticketdata(token,allow_cancelled=True); return {'comments':[{"id":x['id'],"comment":x['comment'],"cancelled":x['cancelled']} for x in legs],'cancelled':bool(b['cancelled_at']),'can_cancel':is_cancellable(b,legs)}
 @app.get(BASE+'/ticket/{token}/qr')
-def qr(token:str):
- b,legs=ticketdata(token); out=io.BytesIO(); qr_image(b,legs).save(out,format='PNG'); return Response(out.getvalue(),media_type='image/png')
-def ticket_image(b,legs,stop_map=None):
+def qr(token:str,request:Request):
+ b,legs=ticketdata(token); out=io.BytesIO(); qr_image(b,legs,qr_url(request,b)).save(out,format='PNG'); return Response(out.getvalue(),media_type='image/png')
+def ticket_image(b,legs,url,stop_map=None):
  # Fixed 9:16 canvas; the text area shrinks as needed, while the QR remains large.
  W,H=1080,1920
  im=Image.new('RGB',(W,H),'#f3f7fb'); draw=ImageDraw.Draw(im)
@@ -247,13 +274,13 @@ def ticket_image(b,legs,stop_map=None):
  im.paste(body,((W-body.width)//2,295),body)
  qr_label='QR KODU GÖSTERİN' if tr else 'ПОКАЖИТЕ QR-КОД'
  draw.text((W/2,1130),qr_label,font=B(30),fill='#456478',anchor='ma')
- q=qr_image(b,legs,max_pixels=615)
+ q=qr_image(b,legs,url,max_pixels=615)
  im.paste(q,((W-q.width)//2,1185))
  return im
 @app.get(BASE+'/ticket/{token}/download/{fmt}')
-def download(token:str,fmt:str,lang:str=''):
+def download(token:str,fmt:str,request:Request,lang:str=''):
  if fmt not in ['jpg','pdf']: raise HTTPException(404)
- b,legs=ticketdata(token); b['lang']=lang if lang in ['ru','tr'] else b['lang']; im=ticket_image(b,legs,stop_translations()); out=io.BytesIO()
+ b,legs=ticketdata(token); b['lang']=lang if lang in ['ru','tr'] else b['lang']; im=ticket_image(b,legs,qr_url(request,b),stop_translations()); out=io.BytesIO()
  if fmt=='jpg': im.save(out,'JPEG',quality=92); typ='image/jpeg'
  else:
   cv=canvas.Canvas(out,pagesize=(324,576)); cv.drawImage(ImageReader(im),0,0,width=324,height=576); cv.showPage(); cv.save(); typ='application/pdf'
@@ -398,12 +425,12 @@ def admin_qrcodes(q:str='',trip_date:str='',trip_time:str='',status:str='all',of
   return {'items':items,'total':total,'offset':offset,'limit':30}
 
 @app.get(BASE+'/api/admin/qrcodes/{code}/image',dependencies=[Depends(admin)])
-def admin_qr_image(code:str):
+def admin_qr_image(code:str,request:Request):
  with db() as c:
   cleanup(c);b=c.execute('SELECT * FROM bookings WHERE code=? AND token IS NOT NULL AND cancelled_at IS NULL',(code,)).fetchone()
   if not b:raise HTTPException(404,'Срок действия истёк / Süresi doldu')
   legs=[dict(x) for x in c.execute('SELECT * FROM legs WHERE booking_id=? ORDER BY date,departure',(b['id'],))]
-  out=io.BytesIO();qr_image(b,legs).save(out,format='PNG');return Response(out.getvalue(),media_type='image/png')
+  out=io.BytesIO();qr_image(b,legs,qr_url(request,b)).save(out,format='PNG');return Response(out.getvalue(),media_type='image/png')
 
 def validated_stop_values(data):
  ru=data.name_ru.strip();tr=data.name_tr.strip()
@@ -518,9 +545,17 @@ def history(date_from:str='',date_to:str='',route_id:str='',card:str='',time_fro
   return [dict(x) for x in c.execute(sql+' ORDER BY l.date DESC,l.departure DESC LIMIT 1000',params)]
 class Verify(BaseModel): token:str
 @app.post(BASE+'/api/admin/verify',dependencies=[Depends(admin)])
-def verify(v:Verify):
- try: data=json.loads(cipher.decrypt(v.token.strip().encode()).decode())
+def verify(v:Verify,request:Request):
+ value=v.token.strip()
+ try: parsed=urlsplit(value); origin=urlsplit(qr_origin(request))
+ except ValueError: raise HTTPException(400,'Недействительный QR / Geçersiz QR')
+ match=re.fullmatch(re.escape(BASE)+r'/check/(BUS-[0-9A-F]{10})/([A-Za-z0-9_-]{22})',parsed.path)
+ if parsed.scheme in ('https','http') and parsed.scheme==origin.scheme and parsed.netloc.lower()==origin.netloc.lower() and not parsed.query and not parsed.fragment and match:
+  b,legs=checked_booking(*match.groups())
+  return {'code':b['code'],'card':b['card'],'fortune':b['fortune'],'fortune_tr':FORTUNES_TR[FORTUNES.index(b['fortune'])] if b['fortune'] in FORTUNES else b['fortune'],'legs':legs}
+ try: data=json.loads(cipher.decrypt(value.encode()).decode())
  except (InvalidToken,ValueError): raise HTTPException(400,'Недействительный QR / Geçersiz QR')
+ if not isinstance(data,dict):raise HTTPException(400,'Недействительный QR / Geçersiz QR')
  with db() as c:
   cleanup(c); b=c.execute('SELECT * FROM bookings WHERE code=?',(data.get('booking'),)).fetchone()
   if not b or b['token'] is None: raise HTTPException(404,'Бронь не найдена или срок истёк / Rezervasyon bulunamadı veya süresi doldu')
