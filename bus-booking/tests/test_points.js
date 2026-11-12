@@ -1,0 +1,16 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const html=fs.readFileSync(process.argv[2],'utf8');
+assert(html.includes('<select id="origin"')&&html.includes('<select id="destination"'));
+assert(html.includes('value="Камп"')&&html.includes('value="Магазин"'));
+const js=html.split('<script>')[1].split('</script>')[0];
+const begin=js.indexOf('function syncRouteFromOrigin()'),end=js.indexOf('function edit(id)',begin);
+assert(begin>=0&&end>begin);
+const fields={origin:{value:''},destination:{value:''}},route_direction={value:'forward'};
+const context={document:{getElementById:id=>fields[id]},route_direction};
+vm.createContext(context);vm.runInContext(js.slice(begin,end),context);
+fields.origin.value='Камп';context.syncRouteFromOrigin();assert.strictEqual(route_direction.value,'forward');assert.strictEqual(fields.destination.value,'Магазин');
+fields.origin.value='Магазин';context.syncRouteFromOrigin();assert.strictEqual(route_direction.value,'reverse');assert.strictEqual(fields.destination.value,'Камп');
+route_direction.value='forward';context.syncRouteFromDirection();assert.strictEqual(fields.origin.value,'Камп');assert.strictEqual(fields.destination.value,'Магазин');
+fields.destination.value='Камп';context.syncRouteFromDestination();assert.strictEqual(fields.origin.value,'Магазин');assert.strictEqual(route_direction.value,'reverse');
+fields.origin.value='Тестовая остановка';fields.destination.value='Камп';context.syncRouteFromOrigin();assert.strictEqual(fields.destination.value,'Камп');
+console.log('PASS: stop selectors and direction synchronization');
