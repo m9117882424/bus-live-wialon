@@ -176,6 +176,15 @@ with tempfile.TemporaryDirectory(prefix='bus-cancel-test-') as tmp:
         assert requests.get(url2,timeout=5).status_code==404
         assert requests.post(base+'/api/admin/verify',auth=auth,json={'token':url2},timeout=5).status_code==404
         assert requests.get(base+'/api/admin/qrcodes',auth=auth,params={'q':code2,'status':'cancelled'},timeout=5).json()['total']==1
+        # Simultaneous passengers on the same trip receive different active wishes.
+        concurrent=add_route('Пожелания','Камп','Магазин','forward','20:00',capacity=2)
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            a=pool.submit(book,'123456',concurrent);b=pool.submit(book,'654321',concurrent)
+            reservations=[a.result(),b.result()]
+        assert all(r.status_code==200 for r in reservations)
+        with sqlite3.connect(dbpath) as db:
+            wishes=db.execute('SELECT b.fortune FROM bookings b JOIN legs l ON l.booking_id=b.id WHERE l.route_id=?',(concurrent,)).fetchall()
+        assert len(wishes)==2 and wishes[0][0]!=wishes[1][0]
         # Both scripts must parse, including the actual dynamically generated passenger confirmation.
         if node := shutil.which('node'):
             admin=requests.get(base+'/admin',auth=auth,timeout=5).text

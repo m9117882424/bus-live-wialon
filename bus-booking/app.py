@@ -13,6 +13,7 @@ import qrcode
 from PIL import Image, ImageDraw, ImageFont
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
+from fortunes import FORTUNES, fortune_tr, choose_fortune
 
 BASE='/bus'; DB=os.environ.get('BUS_DB','bus.db'); TZ=ZoneInfo('Europe/Istanbul')
 PASS=os.environ['BUS_ADMIN_PASSWORD']; cipher=Fernet(os.environ['BUS_FERNET_KEY'].encode()); app=FastAPI(docs_url=None,redoc_url=None,openapi_url=None); auth=HTTPBasic()
@@ -106,10 +107,6 @@ def trips(date:str,direction:str='forward'):
  if direction not in ['forward','reverse']: raise HTTPException(400)
  with db() as c:
   cleanup(c); return [trip(c,r,date,direction) for r in c.execute("SELECT * FROM routes WHERE active=1 AND deleted_at IS NULL AND (service_date='' OR service_date=?) AND direction IN ('both',?) ORDER BY CASE WHEN ?='forward' THEN forward_time ELSE reverse_time END,id",(date,direction,direction)).fetchall()]
-FORTUNES_TR=['Bugün şans sizinle!','Sizi güzel bir gün bekliyor!','İyi haberler yolda!','Yolunuz açık olsun!','Bir gülümseme yeni fırsatlar açar!','Güzel olaylar çok yakın!','Bugün yeni fikirler için harika bir gün!','Her şey gönlünüzce olsun!']
-FORTUNES=['Сегодня удача едет с вами!','Вас ждёт приятный день!','Хорошие новости уже в пути!','Пусть дорога будет лёгкой!','Улыбка откроет новые возможности!','Счастливые события совсем рядом!','Сегодня отличный день для новых идей!','Пусть всё сложится наилучшим образом!']
-def fortune_tr(fortune):
- return FORTUNES_TR[FORTUNES.index(fortune)] if fortune in FORTUNES else fortune
 @app.post(BASE+'/api/book')
 def book(b:Booking):
  card=b.card.strip(); day=validdate(b.date); rd=validdate(b.reverse_date or b.date)
@@ -129,7 +126,8 @@ def book(b:Booking):
     selected.append((r,d,direction,t))
    if len(selected)==2 and (selected[0][3]['destination']!=selected[1][3]['origin'] or selected[0][3]['origin']!=selected[1][3]['destination']): raise HTTPException(400,'Обратный рейс должен следовать между теми же остановками / Dönüş aynı duraklar arasında olmalı')
    if len(selected)==2 and dt(selected[1][1],selected[1][3]['time'])<=dt(selected[0][1],selected[0][3]['time']): raise HTTPException(400,'Обратный рейс должен быть после прямого / Dönüş gidişten sonra olmalı')
-   token=secrets.token_urlsafe(32); code='BUS-'+secrets.token_hex(5).upper(); fortune=secrets.choice(FORTUNES); expires=max(dt(d,t['time']) for _,d,_,t in selected)+timedelta(minutes=30)
+   in_use={x['fortune'] for x in c.execute('SELECT fortune FROM bookings WHERE token IS NOT NULL AND cancelled_at IS NULL AND expires>?',(now().isoformat(),))}
+   token=secrets.token_urlsafe(32); code='BUS-'+secrets.token_hex(5).upper(); fortune=choose_fortune(in_use); expires=max(dt(d,t['time']) for _,d,_,t in selected)+timedelta(minutes=30)
    bid=c.execute('INSERT INTO bookings(code,card,fortune,token,expires,created,lang) VALUES(?,?,?,?,?,?,?)',(code,card,fortune,token,expires.isoformat(),now().isoformat(),b.lang if b.lang in ['ru','tr'] else 'ru')).lastrowid
    for r,d,direction,t in selected:
     used={x[0] for x in c.execute('SELECT sequence FROM legs WHERE route_id=? AND direction=? AND date=?',(r['id'],direction,d))}
