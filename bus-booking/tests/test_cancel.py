@@ -99,15 +99,38 @@ with tempfile.TemporaryDirectory(prefix='bus-cancel-test-') as tmp:
             assert admin_cancel(active[0]['decoded']['booking']).status_code==200
             assert requests.get(base+'/api/ticket/'+newtoken+'/comments',timeout=5).json()['cancelled']
         assert len(requests.get(base+'/api/admin/history',auth=auth,params={'card':'123456','status':'cancelled'},timeout=5).json())==12
-        # Simulate a round trip whose first leg has already departed while the return remains future.
-        started=book('123456',out,back);started.raise_for_status();started_token=started.json()['url'].rsplit('/',1)[1]
-        started_code=item_for_card('123456','active')[0]['decoded']['booking']
+        # Once one leg has started, either role can cancel only the remaining leg.
+        for who,card in [('passenger','123456'),('dispatcher','654321')]:
+            started=book(card,out,back);started.raise_for_status();started_token=started.json()['url'].rsplit('/',1)[1]
+            started_code=item_for_card(card,'active')[0]['decoded']['booking']
+            with sqlite3.connect(dbpath) as db:
+                yesterday=(datetime.now(ZoneInfo('Europe/Istanbul')).date()-timedelta(days=1 if who=='passenger' else 3)).isoformat()
+                db.execute('UPDATE legs SET date=? WHERE booking_id=(SELECT id FROM bookings WHERE code=?) AND route_id=?',(yesterday,started_code,out));db.commit()
+            qr_bytes=requests.get(host+started.json()['url']+'/qr',timeout=10).content
+            old_qr=zxingcpp.read_barcode(Image.open(io.BytesIO(qr_bytes))).text
+            assert requests.get(base+'/api/ticket/'+started_token+'/comments',timeout=5).json()['can_cancel']
+            response=passenger_cancel(started_token) if who=='passenger' else admin_cancel(started_code)
+            assert response.status_code==200,response.text
+            assert requests.post(base+'/api/admin/verify',auth=auth,json={'token':old_qr},timeout=5).status_code==410
+            status=requests.get(base+'/api/ticket/'+started_token+'/comments',timeout=5).json()
+            assert status['cancelled'] and sorted(x['cancelled'] for x in status['comments'])==[0,1]
+            ticket=requests.get(host+started.json()['url'],timeout=5);ticket.raise_for_status()
+            assert '"cancelled": 1' in ticket.text and '"cancelled": 0' in ticket.text
+            all_history=requests.get(base+'/api/admin/history',auth=auth,params={'card':card},timeout=5).json()
+            rows=[r for r in all_history if r['code']==started_code]
+            assert len(rows)==2 and {r['route_name']:bool(r['cancelled_at']) for r in rows}=={'Туда':False,'Обратно':True}
+            for state,name in [('booked','Туда'),('cancelled','Обратно')]:
+                filtered=requests.get(base+'/api/admin/history',auth=auth,params={'card':card,'status':state},timeout=5).json()
+                assert [r['route_name'] for r in filtered if r['code']==started_code]==[name]
+            reverse=requests.get(base+'/api/trips',params={'date':tomorrow,'direction':'reverse'},timeout=5).json()
+            assert next(x for x in reverse if x['id']==back)['free']==2
+        # If all legs have departed, neither role can cancel.
+        finished=book('123456',out,back);finished.raise_for_status();finished_token=finished.json()['url'].rsplit('/',1)[1]
+        finished_code=item_for_card('123456','active')[0]['decoded']['booking']
         with sqlite3.connect(dbpath) as db:
-            yesterday=(datetime.now(ZoneInfo('Europe/Istanbul')).date()-timedelta(days=1)).isoformat()
-            db.execute('UPDATE legs SET date=? WHERE booking_id=(SELECT id FROM bookings WHERE code=?) AND route_id=?',(yesterday,started_code,out));db.commit()
-        assert not requests.get(base+'/api/ticket/'+started_token+'/comments',timeout=5).json()['can_cancel']
-        assert passenger_cancel(started_token).status_code==409 and admin_cancel(started_code).status_code==409
-        assert requests.get(host+started.json()['url'],timeout=5).status_code==200
+            db.execute('UPDATE legs SET date=? WHERE booking_id=(SELECT id FROM bookings WHERE code=?)',((datetime.now(ZoneInfo('Europe/Istanbul')).date()-timedelta(days=2)).isoformat(),finished_code));db.commit()
+        assert not requests.get(base+'/api/ticket/'+finished_token+'/comments',timeout=5).json()['can_cancel']
+        assert passenger_cancel(finished_token).status_code==409 and admin_cancel(finished_code).status_code==409
         # After cancellation a route may be deleted, and remains available for history filtering.
         isolated=add_route('Удаление','Камп','Магазин','forward','17:00')
         x=book('654321',isolated);x.raise_for_status();x_token=x.json()['url'].rsplit('/',1)[1]
@@ -146,6 +169,6 @@ with tempfile.TemporaryDirectory(prefix='bus-cancel-test-') as tmp:
             assert "qrList:'Бронирования'" in admin and 'cancelAdmin(' in admin
             for i,html in enumerate([admin,requests.get(host+url,timeout=5).text]):
                 js=html.split('<script>',1)[1].split('</script>',1)[0];path=Path(tmp)/f'page{i}.js';path.write_text(js,encoding='utf-8');subprocess.run([node,'--check',str(path)],check=True)
-        print('PASS: passenger and dispatcher cancellation, first-departure lock, QR invalidation, seats, history, repeat and concurrent operations')
+        print('PASS: passenger and dispatcher cancellation, remaining-leg cancellation, departure lock, QR invalidation, seats, history, repeat and concurrent operations')
     finally:
         proc.terminate();proc.wait(timeout=10)
