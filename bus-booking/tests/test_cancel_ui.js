@@ -3,7 +3,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const html=fs.readFileSync(process.argv[2],'utf8');
 const js=html.split('<script>')[1].split('</script>')[0];
 function setup(script,serverReply){
- const names=['ok','qrTools','cancelTicketButton','cancelError','cancelNote','expiry','direction','cardLabel','cardVal','codeLabel','codeVal','legs','qr','copy'];
+ const names=['ok','qrTools','cancelTicketButton','cancelError','cancelNote','expiry','direction','cardLabel','cardVal','codeLabel','codeVal','fortuneLabel','fortuneText','legs','qr','copy'];
  const nodes={};for(const name of names)nodes[name]={style:{},classList:{toggle(){}},textContent:'',innerHTML:'',disabled:false};
  const context={...nodes,document:{getElementById:id=>nodes[id],addEventListener(){}},confirm:()=>true,
   fetch:async()=>({ok:true,status:200,json:async()=>serverReply}),setInterval(){},navigator:{clipboard:{}},location:{href:''},prompt(){}};
@@ -12,6 +12,8 @@ function setup(script,serverReply){
 (async()=>{
  let a=setup(js,{ok:true,cancelled:true});
  assert.strictEqual(a.nodes.cancelTicketButton.style.display,'block');
+ assert.strictEqual(a.nodes.fortuneText.textContent,vm.runInContext('data.fortune',a.context));
+ a.context.toggle();assert.strictEqual(a.nodes.fortuneText.textContent,vm.runInContext('data.fortune_tr',a.context));a.context.toggle();
  await a.context.cancelTicket();
  assert.strictEqual(a.nodes.ok.textContent,'БРОНЬ ОТМЕНЕНА');
  assert.strictEqual(a.nodes.qrTools.style.display,'none');

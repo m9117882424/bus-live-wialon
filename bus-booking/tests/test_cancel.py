@@ -76,7 +76,8 @@ with tempfile.TemporaryDirectory(prefix='bus-cancel-test-') as tmp:
         assert original_qr.startswith(host+'/bus/check/') and token not in original_qr
         checked=requests.get(original_qr,timeout=5);checked.raise_for_status()
         assert 'ПОСАДКА РАЗРЕШЕНА' in checked.text and '123456' in checked.text
-        assert 'Отменить бронь' not in checked.text and 'Пусть дорога' not in checked.text
+        assert 'Отменить бронь' not in checked.text
+        assert entry['decoded']['fortune'] in checked.text and entry['fortune_tr'] in checked.text
         altered=original_qr[:-1]+('A' if original_qr[-1]!='A' else 'B')
         assert requests.get(altered,timeout=5).status_code==404
         assert requests.post(base+'/api/admin/verify',auth=auth,json={'token':altered},timeout=5).status_code==404
