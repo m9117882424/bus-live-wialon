@@ -634,6 +634,47 @@ def verify(v:Verify,request:Request):
   legs=[dict(x) for x in c.execute('SELECT * FROM legs WHERE booking_id=? ORDER BY date,departure',(b['id'],))]; expected=qrdata(b,legs)
   if data!=expected: raise HTTPException(400,'Данные не совпадают / Bilgiler uyuşmuyor')
   return {'code':b['code'],'card':b['card'],'fortune':b['fortune'],'fortune_tr':fortune_tr(b['fortune']),'legs':legs}
+@app.post(BASE+'/api/scanner/verify')
+def scanner_verify(v:Verify,request:Request):
+ if not v.token or len(v.token)>8192:return {'allowed':False,'reason':'invalid'}
+ try:
+  parsed=urlsplit(v.token.strip());signed=re.fullmatch(re.escape(BASE)+r'/check/(BUS-[0-9A-F]{10})/([A-Za-z0-9_-]{22})',parsed.path)
+  if signed and not secrets.compare_digest(signed.group(2),qr_signature(signed.group(1))):return {'allowed':False,'reason':'invalid'}
+ except ValueError:return {'allowed':False,'reason':'invalid'}
+ try: booking=verify(v,request)
+ except HTTPException as exc:
+  return {'allowed':False,'reason':'cancelled' if exc.status_code==410 else 'expired' if exc.status_code==404 else 'invalid'}
+ current=now(); trips=[]; permitted=[];stop_map=stop_translations()
+ for leg in booking['legs']:
+  departure=dt(leg['date'],leg['departure']);start=departure-timedelta(minutes=20);end=departure+timedelta(minutes=20)
+  item={'date':leg['date'],'departure':leg['departure'],'origin':leg['origin'],'destination':leg['destination'],
+        'origin_tr':stop_map.get(leg['origin'],leg['origin']),'destination_tr':stop_map.get(leg['destination'],leg['destination']),
+        'window_start':start.isoformat(),'window_end':end.isoformat()}
+  trips.append(item)
+  if start<=current<=end:permitted.append((item,end))
+ if not permitted:return {'allowed':False,'reason':'outside_window','card':booking['card'],'legs':trips,'checked_at':current.isoformat()}
+ # Clear the displayed result before any listed trip leaves its boarding window.
+ remaining=max(0,int((min(end for _,end in permitted)-current).total_seconds()*1000))
+ return {'allowed':True,'card':booking['card'],'legs':[x for x,_ in permitted],'checked_at':current.isoformat(),'remaining_ms':remaining}
+@app.get(BASE+'/scanner',include_in_schema=False)
+def scanner_slash():return RedirectResponse(BASE+'/scanner/')
+@app.get(BASE+'/scanner/',response_class=HTMLResponse)
+def scanner_page():return HTMLResponse((Path(__file__).resolve().parent/'static'/'scanner.html').read_text(encoding='utf-8'))
+@app.get(BASE+'/scanner/manifest.webmanifest')
+def scanner_manifest():
+ return JSONResponse({'name':'TSM BUS — Контроль посадки','short_name':'TSM Посадка','start_url':BASE+'/scanner/',
+  'scope':BASE+'/scanner/','display':'standalone','background_color':'#f2f6fa','theme_color':'#07549b',
+  'icons':[{'src':BASE+'/scanner/icon-'+str(n)+'.png','sizes':str(n)+'x'+str(n),'type':'image/png'} for n in (192,512)]},media_type='application/manifest+json')
+@app.get(BASE+'/scanner/icon-{size}.png')
+def scanner_icon(size:int):
+ if size not in (192,512):raise HTTPException(404)
+ return Response((Path(__file__).resolve().parent/'static'/('scanner-icon-'+str(size)+'.png')).read_bytes(),media_type='image/png')
+@app.get(BASE+'/scanner/jsQR.js')
+def scanner_library():
+ return Response((Path(__file__).resolve().parent/'static'/'vendor'/'jsQR.js').read_bytes(),media_type='text/javascript')
+@app.get(BASE+'/scanner/sw.js')
+def scanner_worker():
+ return Response("self.addEventListener('install',e=>self.skipWaiting());self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));self.addEventListener('fetch',e=>e.respondWith(fetch(e.request)));",media_type='text/javascript')
 CHECK_SCRIPT='''<script>
 const checkCard=/*CARD*/,checkCode=/*CODE*/,checkSignature=/*SIGNATURE*/,checkCanCancel=/*CAN_CANCEL*/;
 function downloadCheck(fmt){location.href='/bus/check/'+encodeURIComponent(checkCode)+'/'+encodeURIComponent(checkSignature)+'/download/'+fmt+'?lang='+encodeURIComponent(document.getElementById('fileLang').value)}
