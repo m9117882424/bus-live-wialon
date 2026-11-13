@@ -653,7 +653,8 @@ def scanner_verify(v:Verify,request:Request):
   trips.append(item)
   if start<=current<=end:permitted.append((item,end))
  if not permitted:return {'allowed':False,'reason':'outside_window','card':booking['card'],'legs':trips,'checked_at':current.isoformat()}
- remaining=max(0,int((max(end for _,end in permitted)-current).total_seconds()*1000))
+ # Clear the displayed result before any listed trip leaves its boarding window.
+ remaining=max(0,int((min(end for _,end in permitted)-current).total_seconds()*1000))
  return {'allowed':True,'card':booking['card'],'legs':[x for x,_ in permitted],'checked_at':current.isoformat(),'remaining_ms':remaining}
 @app.get(BASE+'/scanner',include_in_schema=False)
 def scanner_slash():return RedirectResponse(BASE+'/scanner/')
