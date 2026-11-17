@@ -4,11 +4,11 @@ After=network-online.target tsm-bus-booking-test.service
 Wants=network-online.target
 [Service]
 Type=simple
+User=tsm-bus-booking-test
 DynamicUser=yes
-SupplementaryGroups=tsm-bus-booking-test
 WorkingDirectory=/opt/bus-public-analytics/current/bus-booking
 ExecStart=/opt/bus-public-analytics/venv/bin/python -m uvicorn public_analytics.app:app --host 127.0.0.1 --port 18346 --workers 1 --no-access-log
-Environment=BUS_ANALYTICS_DB=/var/lib/tsm-bus-booking-test/bus.db
+Environment=BUS_ANALYTICS_DB=/run/tsm-bus-analytics-source/bus.db
 Environment=BUS_ANALYTICS_CACHE=/var/lib/tsm-bus-public-analytics/cache.sqlite
 Environment=BUS_WIALON_ADAPTER=/opt/bdd-bus-report/current/geo_api.py
 Environment=PYTHONDONTWRITEBYTECODE=1
@@ -21,7 +21,8 @@ NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=yes
-ReadOnlyPaths=/var/lib/tsm-bus-booking-test /opt/bdd-bus-report
+BindPaths=/var/lib/private/tsm-bus-booking-test:/run/tsm-bus-analytics-source
+ReadOnlyPaths=/run/tsm-bus-analytics-source/bus.db /opt/bdd-bus-report
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
 ProtectControlGroups=yes
