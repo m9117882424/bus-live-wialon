@@ -22,12 +22,12 @@ with tempfile.TemporaryDirectory(prefix='bus-scanner-') as temp:
   db.commit(); booking=dict(db.execute('SELECT * FROM bookings WHERE id=?',(bid,)).fetchone());legs=[dict(x) for x in db.execute('SELECT * FROM legs WHERE booking_id=? ORDER BY date,departure',(bid,))]
  signed=app.qr_url(request,booking);legacy=Fernet(key.encode()).encrypt(json.dumps(app.qrdata(booking,legs),ensure_ascii=False,separators=(',',':')).encode()).decode()
  def scan(value,at):
-  with patch.object(app,'now',return_value=at):return app.scanner_verify(app.Verify(token=value),request)
+  with patch.object(app,'now',return_value=at):return app.scanner_verify(app.Verify(token=value,record=False),request)
  assert scan(signed,departure-timedelta(minutes=20,seconds=1))['reason']=='outside_window'
  start=scan(signed,departure-timedelta(minutes=20));assert start['allowed'] and start['card']=='123456' and len(start['legs'])==1
  assert start['legs'][0]['origin_tr']=='Kamp'
- overlap=scan(signed,departure+timedelta(minutes=20));assert overlap['allowed'] and len(overlap['legs'])==2 and overlap['remaining_ms']==0
- assert scan(legacy,departure+timedelta(minutes=20))['allowed']
+ overlap=scan(signed,departure+timedelta(minutes=20));assert overlap['reason']=='choose_trip' and len(overlap['choices'])==2
+ assert scan(legacy,departure+timedelta(minutes=20))['reason']=='choose_trip'
  assert scan(signed.replace('https://bus.example.test','https://old.example.test'),departure)['allowed']
  assert scan(signed.replace('https://bus.example.test','https://bad.example.test'),departure)['reason']=='invalid'
  assert scan(signed[:-1]+('A' if signed[-1]!='A' else 'B'),departure)['reason']=='invalid'
