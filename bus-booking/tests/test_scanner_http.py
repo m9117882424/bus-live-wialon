@@ -33,7 +33,7 @@ with tempfile.TemporaryDirectory(prefix='bus-scanner-http-') as temp:
   booking=requests.post(base+'/api/book',json={'card':'123456','date':day,'forward':rid,'direction':'forward'},timeout=5);booking.raise_for_status();token=booking.json()['url'].rsplit('/',1)[1]
   png=requests.get(host+booking.json()['url']+'/qr',timeout=10);png.raise_for_status();qr=zxingcpp.read_barcode(Image.open(io.BytesIO(png.content))).text
   def scan(value):
-   r=requests.post(base+'/api/scanner/verify',json={'token':value},timeout=10);r.raise_for_status();return r.json()
+   r=requests.post(base+'/api/scanner/verify',json={'token':value,'record':False},timeout=10);r.raise_for_status();return r.json()
   result=scan(qr);assert result['allowed'] and result['card']=='123456' and result['legs'][0]['origin']=='Камп'
   assert 'fortune' not in result and 'token' not in result
   assert requests.post(base+'/api/scanner/verify',headers={'Origin':'https://untrusted.example'},json={'token':qr},timeout=5).status_code==403
