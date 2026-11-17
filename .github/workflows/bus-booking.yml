@@ -29,6 +29,8 @@ jobs:
           python -m pip install -r requirements.txt requests==2.33.1
       - name: Check accounts, booking rules, languages and exports
         run: |
+          python tests/test_public_analytics.py
+          node --check public_analytics/static/analytics.js
           python tests/test_driver_accounts_http.py
           python tests/test_chinese.py
           python tests/live_regressions/test_rules.py
@@ -41,3 +43,24 @@ jobs:
           node tests/live_regressions/test_lang_runtime.js
           node tests/live_regressions/test_horizon_ui.js
           node tests/live_regressions/test_chrome_pwa_ui.js
+
+  analytics-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: bus-booking
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install analytics and browser
+        run: |
+          python -m pip install -r requirements-analytics.txt
+          npm install --no-save --no-audit --no-fund puppeteer@24.31.0
+      - name: Anonymous analytics, filters, Excel and responsive layout
+        run: python tests/public_analytics_browser.py

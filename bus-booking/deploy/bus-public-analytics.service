@@ -1,0 +1,35 @@
+[Unit]
+Description=TSM bus booking public analytics (read only)
+After=network-online.target tsm-bus-booking-test.service
+Wants=network-online.target
+[Service]
+Type=simple
+User=tsm-bus-booking-test
+DynamicUser=yes
+WorkingDirectory=/opt/bus-public-analytics/current/bus-booking
+ExecStart=/opt/bus-public-analytics/venv/bin/python -m uvicorn public_analytics.app:app --host 127.0.0.1 --port 18346 --workers 1 --no-access-log
+Environment=BUS_ANALYTICS_DB=/run/tsm-bus-analytics-source/bus.db
+Environment=BUS_ANALYTICS_CACHE=/var/lib/tsm-bus-public-analytics/cache.sqlite
+Environment=BUS_WIALON_ADAPTER=/opt/bdd-bus-report/current/geo_api.py
+Environment=PYTHONDONTWRITEBYTECODE=1
+LoadCredential=wialon-token:/etc/corporate-taxi/wialon-token
+StateDirectory=tsm-bus-public-analytics
+UMask=0077
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+BindPaths=/var/lib/private/tsm-bus-booking-test:/run/tsm-bus-analytics-source
+ReadOnlyPaths=/run/tsm-bus-analytics-source/bus.db /opt/bdd-bus-report
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+MemoryMax=384M
+CPUQuota=50%
+TasksMax=32
+[Install]
+WantedBy=multi-user.target
