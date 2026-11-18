@@ -20,6 +20,7 @@ let puppeteer;try{puppeteer=require('puppeteer')}catch{puppeteer=require('puppet
   assert((await page.$eval('.execution-status.not_performed',item=>item.getAttribute('title'))).includes('GPS'));
   const report=await (await fetch(origin+'/analytics/api/report?start=2026-11-16&end=2026-11-17')).json();
   assert.equal(report.wialon.geofences.kpp,'8 - КПП АККУЮ');
+  assert.equal(report.wialon.origin_min_points,2);
   for(const secret of ['coverage','query_from','query_to','point_count','private-card','private-token'])assert(!JSON.stringify(report).includes(secret));
   for(const width of [1500,1024,390,320]){
    await page.setViewport({width,height:1100});
