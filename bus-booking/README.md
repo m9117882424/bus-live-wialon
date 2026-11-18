@@ -78,3 +78,5 @@ python tests/test_scanner_http.py
 Дополнительные проверки: `python tests/test_driver_accounts_http.py`, `node tests/test_scanner_ui.js`, `python tests/browser_acceptance.py` и `python tests/chinese_browser_acceptance.py`. Браузерные проверки используют Puppeteer/Chrome и временную базу.
 
 Оперативная вкладка администратора «Заполняемость»: [OCCUPANCY.md](OCCUPANCY.md). Даты действующих рейсов в пределах горизонта бронирования, показатели «Записано / Свободно» и обновление каждые 30 секунд.
+
+СКУД: импорт в разделе разрешённых пропусков, приватность трёх полей, окно −30/+5 минут и отдельные свободные места описаны в [SCUD.md](SCUD.md).

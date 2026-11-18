@@ -10,7 +10,7 @@ let puppeteer;try{puppeteer=require('puppeteer')}catch{puppeteer=require('puppet
   await page.goto(origin+'/analytics/?start=2026-11-16&end=2026-11-17',{waitUntil:'networkidle0'});
   await page.waitForSelector('#metrics-execution .stat-value');
   assert((await page.$eval('#methodology',item=>item.textContent)).includes('8 - КПП АККУЮ'));
-  assert.equal(await page.$eval('.details thead th:last-child',item=>item.textContent),'Прибытие на КПП');
+  assert.equal(await page.$eval('.details thead th:nth-child(13)',item=>item.textContent),'Прибытие на КПП');
   assert.deepEqual(await page.$$eval('#metrics-execution .stat-value',items=>items.map(item=>item.textContent)),['3','4']);
   assert((await page.$eval('#execution-state',item=>item.textContent)).includes('недостаточно GPS: 1'));
   await page.click('#expand');

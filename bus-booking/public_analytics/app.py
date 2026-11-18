@@ -56,6 +56,7 @@ def report(start=None,end=None,direction='all',preset=None):
     except (sqlite3.Error,OSError):raise HTTPException(503,'Источник бронирований временно недоступен.') from None
 @app.get('/analytics/api/report')
 def get_report(start:str|None=None,end:str|None=None,direction:str='all',preset:str|None=None):return report(start,end,direction,preset)
+SCUD_LABELS={'ready':'Загружено','partial':'Неполные или спорные данные','no_data':'Нет выгрузки','no_bus':'Автобус не определён','pending':'Предстоящий'}
 STATUS={'planned':'Предстоящий','on_time':'Вовремя','early':'Рано','late':'С опозданием','unknown':'Нет подтверждённого выезда'}
 REASONS={'not_due':'Рейс ещё не начался','wialon_loading':'Загрузка Wialon','wialon_error':'Wialon временно недоступен',
     'no_exit':'Нет достоверного выхода из геозоны','ambiguous':'Несколько подходящих рейсов или автобусов','wialon_zone_exit':'Подтверждённый выход Wialon'}
@@ -66,9 +67,9 @@ def excel(result):
     s.append(['Период',result['period']['start'],result['period']['end']])
     s.append(['Сформировано (Турция)',result['generated_at']])
     s.append(['Wialon обновлён (Турция)',result['wialon']['last_updated'] or 'Нет данных'])
-    headings=['Направление','Рейсы','Брони','Посадка подтверждена','Посадка не подтверждена','Вместимость','Свободно','Ранних','Опозданий','Вовремя','Выезд не определён','Предстоящих','Занято по броням, %','Состоялись','Не состоялись','В пути','Ожидают проверки','Недостаточно GPS','Неоднозначно']
+    headings=['Направление','Рейсы','Брони','Посадка подтверждена','Посадка не подтверждена','Вместимость','Свободно мест по броням','Ранних','Опозданий','Вовремя','Выезд не определён','Предстоящих','Занято по броням, %','Состоялись','Не состоялись','В пути','Ожидают проверки','Недостаточно GPS','Неоднозначно','Факт по СКУД','Свободно мест по СКУД','Рейсов с данными СКУД']
     s.append(headings)
-    def values(t):return [t[k] for k in ('trips','bookings','confirmed','unconfirmed','capacity','free','early','late','on_time','unknown','planned','occupancy_percent','performed','not_performed','in_progress','execution_pending','execution_unknown','execution_ambiguous')]
+    def values(t):return [t[k] for k in ('trips','bookings','confirmed','unconfirmed','capacity','free','early','late','on_time','unknown','planned','occupancy_percent','performed','not_performed','in_progress','execution_pending','execution_unknown','execution_ambiguous','scud_count','scud_free','scud_known_trips')]
     for g in result['directions']:s.append([g['label']]+values(g['totals']))
     s.append(['Итого']+values(result['totals']))
     days=wb.create_sheet('По датам');days.append(['Дата / направление']+headings[1:])
@@ -78,14 +79,14 @@ def excel(result):
         for g in day['directions']:
             days.append([g['label']]+values(g['totals']));days.row_dimensions[days.max_row].outlineLevel=1
     trips=wb.create_sheet('Рейсы')
-    trips.append(['Дата','Направление','Рейс','Автобус','Откуда','Куда','План','Факт Wialon','Отклонение, мин','Статус','Пояснение','Вместимость','Брони','Посадка подтверждена','Посадка не подтверждена','Свободно','Факт рейса','Прибытие на КПП','В пути, мин','Проверка до','Пояснение проверки'])
+    trips.append(['Дата','Направление','Рейс','Автобус','Откуда','Куда','План','Факт Wialon','Отклонение, мин','Статус','Пояснение','Вместимость','Брони','Посадка подтверждена','Посадка не подтверждена','Свободно мест по броням','Факт рейса','Прибытие на КПП','В пути, мин','Проверка до','Пояснение проверки','Факт по СКУД','Свободно мест по СКУД','СКУД: статус','Спорных карт СКУД'])
     for r in result['trips']:
         trips.append([datetime.fromisoformat(r['date']),'В ШОКмаркет' if r['direction']=='forward' else 'В Камп',safe(r['name']),
             r['vehicle'],safe(r['origin']),safe(r['destination']),datetime.fromisoformat(r['planned_at']).replace(tzinfo=None),
             datetime.fromisoformat(r['actual_at']).replace(tzinfo=None) if r['actual_at'] else None,r['delta_minutes'],
             STATUS[r['status']],REASONS[r['reason']],r['capacity'],r['bookings'],r['confirmed'],r['unconfirmed'],r['free'],EXECUTION_LABELS[r['execution_status']],
             datetime.fromisoformat(r['arrival_at']).replace(tzinfo=None) if r['arrival_at'] else None,r['duration_minutes'],
-            datetime.fromisoformat(r['execution_deadline']).replace(tzinfo=None),EXECUTION_REASONS[r['execution_reason']]])
+            datetime.fromisoformat(r['execution_deadline']).replace(tzinfo=None),EXECUTION_REASONS[r['execution_reason']],r['scud_count'],r['scud_free'],SCUD_LABELS[r['scud_status']],r['scud_ambiguous']])
         for col,fmt in [(1,'DD.MM.YYYY'),(7,'HH:MM'),(8,'HH:MM:SS'),(9,'0.0'),(18,'DD.MM.YYYY HH:MM:SS'),(19,'0.0'),(20,'DD.MM.YYYY HH:MM:SS')]:trips.cell(trips.max_row,col).number_format=fmt
     rules=wb.create_sheet('Правила');rules.append(['Правила расчёта'])
     for note in result['notes']:rules.append([note])

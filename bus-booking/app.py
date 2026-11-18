@@ -19,6 +19,8 @@ from reportlab.lib.utils import ImageReader
 from fortunes import FORTUNES, fortune_tr, choose_fortune
 from fortune_localizations import fortune_localized
 from occupancy import occupancy_report
+from scud import init_schema as init_scud,parse_workbook as parse_scud,save_import as save_scud,import_status as scud_status,ScudError,MAX_BYTES as SCUD_MAX_BYTES
+from starlette.concurrency import run_in_threadpool
 
 BASE='/bus'; DB=os.environ.get('BUS_DB','bus.db'); TZ=ZoneInfo('Europe/Istanbul')
 PASS=os.environ['BUS_ADMIN_PASSWORD']; cipher=Fernet(os.environ['BUS_FERNET_KEY'].encode()); app=FastAPI(docs_url=None,redoc_url=None,openapi_url=None); auth=HTTPBasic()
@@ -74,13 +76,14 @@ def init():
   if 'weekday_mask' not in {x['name'] for x in c.execute('PRAGMA table_info(routes)')}: c.execute('ALTER TABLE routes ADD COLUMN weekday_mask INTEGER NOT NULL DEFAULT 127')
   for table in ('routes','legs'):
    if 'comment' not in {x['name'] for x in c.execute('PRAGMA table_info('+table+')')}: c.execute("ALTER TABLE "+table+" ADD COLUMN comment TEXT NOT NULL DEFAULT ''")
+  init_scud(c)
   c.commit()
 def cleanup(c):
  c.execute('UPDATE bookings SET token=NULL WHERE token IS NOT NULL AND expires<=?',(now().isoformat(),))
  t=now().date(); m=t.month-6; y=t.year
  if m<=0: m+=12; y-=1
  cutoff=date(y,m,min(t.day,calendar.monthrange(y,m)[1])).isoformat()
- c.execute('DELETE FROM bookings WHERE NOT EXISTS (SELECT 1 FROM legs WHERE legs.booking_id=bookings.id AND legs.date>=?) AND NOT EXISTS (SELECT 1 FROM cancelled_legs WHERE cancelled_legs.booking_id=bookings.id AND cancelled_legs.date>=?)',(cutoff,cutoff)); c.commit()
+ c.execute('DELETE FROM bookings WHERE NOT EXISTS (SELECT 1 FROM legs WHERE legs.booking_id=bookings.id AND legs.date>=?) AND NOT EXISTS (SELECT 1 FROM cancelled_legs WHERE cancelled_legs.booking_id=bookings.id AND cancelled_legs.date>=?)',(cutoff,cutoff)); c.execute('DELETE FROM scud_events WHERE stamp<?',(int(datetime.combine(date.fromisoformat(cutoff),time.min,TZ).timestamp()*1000),)); c.execute('DELETE FROM scud_days WHERE day<?',(cutoff,)); c.execute('DELETE FROM scud_imports WHERE last_day<?',(cutoff,)); c.commit()
 def admin(credentials:HTTPBasicCredentials=Depends(auth)):
  username=credentials.username.encode(); password=credentials.password.encode()
  valid=secrets.compare_digest(username,b'admin') and secrets.compare_digest(password,PASS.encode())
@@ -1092,3 +1095,38 @@ ADMIN=ADMIN.replace('</body></html>','<script src="/bus/admin-occupancy.js"></sc
 # An inline handler's bare "lang" resolves to HTMLElement.lang, not the admin state.
 ADMIN=ADMIN.replace("onclick=\"lang=lang==='ru'?'tr':'ru';renderLanguage()\"",'onclick="toggleAdminLanguage()"',1)
 ADMIN=ADMIN.replace('function renderLanguage(){',"function toggleAdminLanguage(){lang=lang==='ru'?'tr':'ru';renderLanguage()}function renderLanguage(){",1)
+
+
+@app.get(BASE+'/api/admin/scud/status',dependencies=[Depends(admin)])
+def get_scud_status():
+ with db() as connection:return scud_status(connection)
+
+def import_scud_bytes(content):
+ parsed=parse_scud(content)
+ with db() as connection:return save_scud(connection,parsed,now())
+
+@app.post(BASE+'/api/admin/scud/import',dependencies=[Depends(admin)])
+async def import_scud(request:Request):
+ content=bytearray()
+ async for chunk in request.stream():
+  if len(content)+len(chunk)>SCUD_MAX_BYTES:
+   raise HTTPException(413,'Файл XLSX: не более 6 МБ / XLSX en fazla 6 MB')
+  content.extend(chunk)
+ try:return await run_in_threadpool(import_scud_bytes,bytes(content))
+ except ScudError as error:raise HTTPException(400,str(error)) from None
+ finally:content.clear()
+
+@app.get(BASE+'/admin-scud.js',dependencies=[Depends(admin)])
+def admin_scud_javascript():
+ return Response((Path(__file__).resolve().parent/'static'/'admin-scud.js').read_bytes(),media_type='text/javascript')
+
+@app.get(BASE+'/admin-scud.css',dependencies=[Depends(admin)])
+def admin_scud_stylesheet():
+ return Response((Path(__file__).resolve().parent/'static'/'admin-scud.css').read_bytes(),media_type='text/css')
+
+SCUD_PANEL="""<section id="scudBox" class="box"><h2 data-scud-i="title">Импорт отметок СКУД</h2><p class="muted small" data-scud-i="privacy">Сохраняются только автобус, карта и время. ФИО, кимлик, паспорт и исходный файл не сохраняются.</p><p class="small" data-scud-i="rule">Привязка к рейсу: 30 минут до отправления и 5 минут после, по времени Турции. Повторные отметки одной карты на рейсе считаются один раз.</p><label for="scudFiles" data-scud-i="files">Выгрузки СКУД (XLSX)</label><input type="file" id="scudFiles" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple><div class="row scud-actions"><button type="button" id="scudImport" data-scud-i="upload">Загрузить СКУД</button><button type="button" id="scudRefresh" class="secondary" data-scud-i="refresh">Обновить</button></div><p id="scudResult" role="status" aria-live="polite"></p><p id="scudError" class="alert" role="alert" hidden></p><p id="scudTotal" class="muted small"></p><div id="scudHistory" class="scud-history"></div></section>"""
+ADMIN=ADMIN.replace('<section id="whitePanel" style="display:none">','<section id="whitePanel" style="display:none">'+SCUD_PANEL,1)
+ADMIN=ADMIN.replace('function showTab(which){','function showTab(which){window.BusScud?.show(which);',1)
+ADMIN=ADMIN.replace('function renderLanguage(){','function renderLanguage(){window.BusScud?.renderLanguage();',1)
+ADMIN=ADMIN.replace('</head>','<link rel="stylesheet" href="/bus/admin-scud.css"></head>',1)
+ADMIN=ADMIN.replace('</body></html>','<script src="/bus/admin-scud.js"></script></body></html>',1)
