@@ -67,10 +67,15 @@ def excel(result):
     s.append(['Период',result['period']['start'],result['period']['end']])
     s.append(['Сформировано (Турция)',result['generated_at']])
     s.append(['Wialon обновлён (Турция)',result['wialon']['last_updated'] or 'Нет данных'])
-    headings=['Направление','Рейсы','Брони','Посадка подтверждена','Посадка не подтверждена','Вместимость','Свободно мест по броням','Ранних','Опозданий','Вовремя','Выезд не определён','Предстоящих','Занято по броням, %','Состоялись','Не состоялись','В пути','Ожидают проверки','Недостаточно GPS','Неоднозначно','Факт по СКУД','Свободно мест по СКУД','Рейсов с данными СКУД']
+    headings=['Направление','Рейсы','Брони','Посадка подтверждена','Посадка не подтверждена','Вместимость','Свободно мест по броням','Факт по СКУД','Свободно мест по СКУД','Рейсов с данными СКУД','Ранних','Опозданий','Вовремя','Выезд не определён','Предстоящих','Занято по броням, %','Состоялись','Не состоялись','В пути','Ожидают проверки','Недостаточно GPS','Неоднозначно']
     s.append(headings)
-    def values(t):return [t[k] for k in ('trips','bookings','confirmed','unconfirmed','capacity','free','early','late','on_time','unknown','planned','occupancy_percent','performed','not_performed','in_progress','execution_pending','execution_unknown','execution_ambiguous','scud_count','scud_free','scud_known_trips')]
-    for g in result['directions']:s.append([g['label']]+values(g['totals']))
+    def values(t):return [t[k] for k in ('trips','bookings','confirmed','unconfirmed','capacity','free','scud_count','scud_free','scud_known_trips','early','late','on_time','unknown','planned','occupancy_percent','performed','not_performed','in_progress','execution_pending','execution_unknown','execution_ambiguous')]
+    fills={d:PatternFill('solid',fgColor=color) for d,color in [('forward','D4EAFF'),('reverse','E9DAFA')]}
+    def shade_direction(sheet,direction):
+        for cell in sheet[sheet.max_row]:cell.fill=fills[direction]
+    for g in result['directions']:
+        s.append([g['label']]+values(g['totals']))
+        shade_direction(s,g['direction'])
     s.append(['Итого']+values(result['totals']))
     days=wb.create_sheet('По датам');days.append(['Дата / направление']+headings[1:])
     for day in result['days']:
@@ -78,6 +83,7 @@ def excel(result):
         days.cell(days.max_row,1).number_format='DD.MM.YYYY'
         for g in day['directions']:
             days.append([g['label']]+values(g['totals']));days.row_dimensions[days.max_row].outlineLevel=1
+            shade_direction(days,g['direction'])
     trips=wb.create_sheet('Рейсы')
     trips.append(['Дата','Направление','Рейс','Автобус','Откуда','Куда','План','Факт Wialon','Отклонение, мин','Статус','Пояснение','Вместимость','Брони','Посадка подтверждена','Посадка не подтверждена','Свободно мест по броням','Факт рейса','Прибытие на КПП','В пути, мин','Проверка до','Пояснение проверки','Факт по СКУД','Свободно мест по СКУД','СКУД: статус','Спорных карт СКУД'])
     for r in result['trips']:
@@ -87,6 +93,7 @@ def excel(result):
             STATUS[r['status']],REASONS[r['reason']],r['capacity'],r['bookings'],r['confirmed'],r['unconfirmed'],r['free'],EXECUTION_LABELS[r['execution_status']],
             datetime.fromisoformat(r['arrival_at']).replace(tzinfo=None) if r['arrival_at'] else None,r['duration_minutes'],
             datetime.fromisoformat(r['execution_deadline']).replace(tzinfo=None),EXECUTION_REASONS[r['execution_reason']],r['scud_count'],r['scud_free'],SCUD_LABELS[r['scud_status']],r['scud_ambiguous']])
+        shade_direction(trips,r['direction'])
         for col,fmt in [(1,'DD.MM.YYYY'),(7,'HH:MM'),(8,'HH:MM:SS'),(9,'0.0'),(18,'DD.MM.YYYY HH:MM:SS'),(19,'0.0'),(20,'DD.MM.YYYY HH:MM:SS')]:trips.cell(trips.max_row,col).number_format=fmt
     rules=wb.create_sheet('Правила');rules.append(['Правила расчёта'])
     for note in result['notes']:rules.append([note])
