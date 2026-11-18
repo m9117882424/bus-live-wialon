@@ -66,7 +66,8 @@ def track_evidence(points,zones,day,plate,start=None,end=None):
                 last_inside=stamp;first_out=first_index=None;continue
             if last_inside is None:continue
             if first_out is None:
-                if last_inside-inside_since<MIN_ZONE_SECONDS:inside_since=last_inside=None
+                # Two distinct origin samples suffice; a real short visit need not last 20 seconds.
+                if last_inside==inside_since:inside_since=last_inside=None
                 else:first_out=stamp;first_index=i
                 continue
             if stamp-first_out<MIN_ZONE_SECONDS:continue
@@ -99,7 +100,7 @@ class Collector:
         with self.connection() as c:
             c.execute('PRAGMA journal_mode=WAL')
             # Separate derived cache preserves safe rollback to the previous collector.
-            c.execute('CREATE TABLE IF NOT EXISTS gps_tracks_v3(day TEXT,plate TEXT,updated REAL,status TEXT,payload TEXT,PRIMARY KEY(day,plate))')
+            c.execute('CREATE TABLE IF NOT EXISTS gps_tracks_v4(day TEXT,plate TEXT,updated REAL,status TEXT,payload TEXT,PRIMARY KEY(day,plate))')
         self.enabled=enabled;self.pending=set();self.lock=threading.Lock();self.jobs=queue.Queue(maxsize=256)
         self.stopped=threading.Event();self.adapter=None;self.catalog_at=0;self.units={};self.zones={}
         if enabled:
@@ -113,7 +114,7 @@ class Collector:
     def request(self,start,end,plates,current=None,active_days=None):
         current=current or datetime.now(TZ);last=min(date.fromisoformat(end),current.date());first=date.fromisoformat(start)
         with self.connection() as c:
-            cache={(r[0],r[1]):r for r in c.execute('SELECT day,plate,updated,status,payload FROM gps_tracks_v3 WHERE day BETWEEN ? AND ?',(start,end))}
+            cache={(r[0],r[1]):r for r in c.execute('SELECT day,plate,updated,status,payload FROM gps_tracks_v4 WHERE day BETWEEN ? AND ?',(start,end))}
         events=[];readiness={};telemetry={};updates=[];days=[]
         while first<=last:
             if active_days is None or first.isoformat() in active_days:days.append(first.isoformat())
@@ -145,7 +146,7 @@ class Collector:
             error_days=sum(s=='error' for s in readiness.values()),fleet_count=len(plates),
             last_updated=datetime.fromtimestamp(max(updates),TZ).isoformat() if updates else None,geofences=ZONE_LABELS,
             departure_window_minutes=DEPARTURE_WINDOW//60,max_journey_minutes=MAX_TRAVEL//60,
-            gps_gap_seconds=MAX_GPS_GAP,stationary_gap_seconds=MAX_IDLE_GAP)
+            gps_gap_seconds=MAX_GPS_GAP,stationary_gap_seconds=MAX_IDLE_GAP,origin_min_points=2)
         return events,readiness,metadata,telemetry
     def refresh_catalog(self,client):
         if time.time()-self.catalog_at>600:
@@ -171,13 +172,13 @@ class Collector:
                 except Exception:
                     state='error'
                     with self.connection() as c:
-                        old=c.execute('SELECT payload FROM gps_tracks_v3 WHERE day=? AND plate=?',(day,plate)).fetchone()
+                        old=c.execute('SELECT payload FROM gps_tracks_v4 WHERE day=? AND plate=?',(day,plate)).fetchone()
                     try:payload=json.loads(old[0]) if old else None
                     except (TypeError,ValueError):payload=None
                     if not isinstance(payload,dict) or payload.get('version')!=GPS_VERSION:
                         payload=dict(version=GPS_VERSION,events=[],coverage=[])
                 with self.connection() as c:
-                    c.execute('INSERT OR REPLACE INTO gps_tracks_v3 VALUES(?,?,?,?,?)',(day,plate,time.time(),state,json.dumps(payload,separators=(',',':'))))
+                    c.execute('INSERT OR REPLACE INTO gps_tracks_v4 VALUES(?,?,?,?,?)',(day,plate,time.time(),state,json.dumps(payload,separators=(',',':'))))
             finally:
                 with self.lock:self.pending.discard((day,plate))
                 self.jobs.task_done()

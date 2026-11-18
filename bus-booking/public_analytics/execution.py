@@ -9,7 +9,7 @@ MAX_TRAVEL = 90 * 60
 MAX_GPS_GAP = 180
 MAX_IDLE_GAP = 600
 MIN_ZONE_SECONDS = 20
-GPS_VERSION = 3
+GPS_VERSION = 4
 
 EXECUTION_LABELS = {
     "performed": "Состоялся", "not_performed": "Не состоялся",

@@ -30,7 +30,7 @@ with tempfile.TemporaryDirectory(prefix="bus-gps-browser-") as tmp:
                 coverage=[[start,int(midnight.replace(hour=17).timestamp())],
                           [int(midnight.replace(hour=20).timestamp()),end]]
             payload=dict(version=GPS_VERSION,events=events,coverage=coverage,collected_at=end,point_count=200)
-            with collector.connection() as c:c.execute("INSERT INTO gps_tracks_v3 VALUES(?,?,?,?,?)",(day,bus,time.time(),"ready",json.dumps(payload)))
+            with collector.connection() as c:c.execute("INSERT INTO gps_tracks_v4 VALUES(?,?,?,?,?)",(day,bus,time.time(),"ready",json.dumps(payload)))
     with socket.socket() as sock:sock.bind(("127.0.0.1",0));port=sock.getsockname()[1]
     origin="http://127.0.0.1:"+str(port)
     env={**os.environ,"BUS_ANALYTICS_DB":str(db),"BUS_ANALYTICS_CACHE":str(cache),"BUS_ANALYTICS_COLLECTOR":"0"}

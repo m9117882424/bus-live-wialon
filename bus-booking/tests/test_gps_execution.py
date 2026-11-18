@@ -131,6 +131,28 @@ class DetectorTests(unittest.TestCase):
         self.assertTrue(e["route_complete"])
         self.assertFalse(self.evidence(self.points[:-1])["events"][0]["route_complete"])
 
+    def test_seventeen_second_origin_visit_confirms_both_directions(self):
+        for point,direction in [((.5,.5),"forward"),((5.5,5.5),"reverse")]:
+            points=[(P,point),(P+7,point),(P+17,point),(P+20,(2,2)),
+                    (P+47,(2,2)),(P+150,(2,2)),(P+300,(10.5,10.5)),(P+330,(10.5,10.5))]
+            evidence=self.evidence(points)
+            self.assertEqual(len(evidence["events"]),1)
+            e=evidence["events"][0]
+            self.assertEqual((e["direction"],e["stamp"],e["arrived_at"]),(direction,P+20,P+300))
+            self.assertTrue(e["route_complete"])
+            row=trip(direction=direction)
+            attach_execution([row],evidence["events"],{DAY:"ready"},{},FLEET,PLAN+timedelta(hours=1))
+            self.assertEqual(row["execution_status"],"performed")
+
+    def test_one_origin_point_or_duplicate_timestamp_does_not_confirm(self):
+        tail=[(P+20,(2,2)),(P+47,(2,2)),(P+150,(2,2)),(P+300,(10.5,10.5)),(P+330,(10.5,10.5))]
+        for origin in [[(P,(.5,.5))],[(P,(.5,.5)),(P,(.5,.5))]]:
+            self.assertEqual(self.evidence(origin+tail)["events"],[])
+
+    def test_seventeen_second_destination_visit_still_does_not_confirm(self):
+        result=self.evidence(self.points[:-1]+[(P+137,(10.5,10.5))])
+        self.assertFalse(result["events"][0]["route_complete"])
+
     def test_other_scheduled_stop_does_not_complete_a_journey_without_kpp(self):
         for origin,destination,direction in [((.5,.5),(5.5,5.5),"forward"),((5.5,5.5),(.5,.5),"reverse")]:
             points=[(P,origin),(P+30,origin),(P+60,(2,2)),(P+90,(2,2)),(P+120,destination),(P+150,destination)]
@@ -177,6 +199,8 @@ class CacheAndReportTests(unittest.TestCase):
             with sqlite3.connect(path) as c:
                 c.execute("CREATE TABLE tracks(day,plate,updated,status,events)")
                 c.execute("INSERT INTO tracks VALUES(?,?,?,?,?)",(DAY,FLEET[0],0,"ready",json.dumps([event()])))
+                c.execute("CREATE TABLE gps_tracks_v3(day,plate,updated,status,payload)")
+                c.execute("INSERT INTO gps_tracks_v3 VALUES(?,?,?,?,?)",(DAY,FLEET[0],time.time(),"ready",json.dumps(dict(version=3,events=[event()],coverage=[[P-10000,P+20000]]))))
                 c.execute("CREATE TABLE gps_tracks_v2(day,plate,updated,status,payload)")
                 c.execute("INSERT INTO gps_tracks_v2 VALUES(?,?,?,?,?)",(DAY,FLEET[0],time.time(),"ready",json.dumps(dict(version=2,events=[event()],coverage=[[P-10000,P+20000]]))))
             collector=Collector(path,enabled=False)
@@ -185,16 +209,17 @@ class CacheAndReportTests(unittest.TestCase):
             self.assertEqual(set(telemetry),{(DAY,bus) for bus in FLEET})
             with sqlite3.connect(path) as c:self.assertEqual(c.execute("SELECT COUNT(*) FROM tracks").fetchone()[0],1)
             with sqlite3.connect(path) as c:self.assertEqual(c.execute("SELECT COUNT(*) FROM gps_tracks_v2").fetchone()[0],1)
+            with sqlite3.connect(path) as c:self.assertEqual(c.execute("SELECT COUNT(*) FROM gps_tracks_v3").fetchone()[0],1)
 
     def test_fetch_error_preserves_previously_proven_complete_route(self):
         with tempfile.TemporaryDirectory() as temp:
             collector=Collector(Path(temp)/"cache.sqlite",enabled=False)
             payload=dict(version=GPS_VERSION,events=[event()],coverage=[[P-10000,P+20000]],collected_at=P+1000)
-            with collector.connection() as c:c.execute("INSERT INTO gps_tracks_v3 VALUES(?,?,?,?,?)",(DAY,FLEET[0],0,"ready",json.dumps(payload)))
+            with collector.connection() as c:c.execute("INSERT INTO gps_tracks_v4 VALUES(?,?,?,?,?)",(DAY,FLEET[0],0,"ready",json.dumps(payload)))
             def fail(*args):raise OSError("synthetic network failure")
             collector.fetch=fail;collector.pending.add((DAY,FLEET[0]));collector.jobs.put((DAY,FLEET[0]))
             thread=threading.Thread(target=collector.worker);thread.start();collector.jobs.join();collector.close();thread.join(timeout=3)
-            with collector.connection() as c:state,text=c.execute("SELECT status,payload FROM gps_tracks_v3").fetchone()
+            with collector.connection() as c:state,text=c.execute("SELECT status,payload FROM gps_tracks_v4").fetchone()
             self.assertEqual(state,"error");self.assertTrue(json.loads(text)["events"][0]["route_complete"])
 
     def test_report_totals_filtering_and_excel_include_execution_without_passenger_data(self):
