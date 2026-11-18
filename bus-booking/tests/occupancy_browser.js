@@ -13,6 +13,7 @@ const authorization='Basic '+Buffer.from('admin:synthetic-occupancy').toString('
   await page.evaluateOnNewDocument(()=>localStorage.setItem('bus-lang','ru'));
   await page.setViewport({width:1500,height:1000});
   await page.goto(origin+'/bus/admin',{waitUntil:'networkidle0'});
+  assert.equal(await page.$$eval('.admin-tabs button',items=>new Set(items.map(item=>Math.round(item.getBoundingClientRect().top))).size),1,'All six tabs must fit on one desktop row');
   await page.click('#occupancyTab');
   await page.waitForFunction(()=>document.querySelectorAll('.occupancy-trip').length===1);
   assert.deepEqual(await page.$$eval('#occupancyDate option',items=>items.map(item=>item.value)),[today,tomorrow]);

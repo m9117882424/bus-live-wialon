@@ -5,3 +5,5 @@
 @media(pointer:coarse){input,select{height:44px;font-size:16px}.actions a,.actions button,.disclosure,.quiet{min-height:44px}}
 
 .quick-periods{flex-basis:100%;display:flex;gap:8px}.quick-periods button{border:1px solid var(--line);border-radius:7px;background:var(--paper);color:var(--ink);padding:7px 16px;min-height:37px;font-size:13px}.quick-periods button[aria-pressed="true"]{background:var(--blue-soft);border-color:var(--blue);color:var(--blue);font-weight:600}@media(pointer:coarse){.quick-periods button{min-height:44px}}
+
+.execution-metrics{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:5px}.execution-state{font-size:12px;color:var(--sub);margin:2px 0 20px}.execution-status.performed{color:var(--green);background:var(--green-soft)}.execution-status.not_performed{color:var(--red);background:var(--red-soft)}.execution-status.in_progress,.execution-status.checking,.execution-status.ambiguous{color:var(--amber);background:var(--amber-soft)}.execution-count{white-space:normal}.count-performed{color:var(--green)}.count-missed{color:var(--red)}.details{min-width:1440px}.summary-table{min-width:1100px}

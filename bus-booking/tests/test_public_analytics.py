@@ -91,7 +91,7 @@ class FakeZone:
 class ExitTests(unittest.TestCase):
  def zones(self):return {'forward':FakeZone('','',(0,1,0,1),()),'reverse':FakeZone('','',(5,6,5,6),())}
  def test_confirmed_exit_destination_gaps_initial_outside_and_jitter(self):
-  s=stamp(16,9);points=[(s,(.5,.5)),(s+30,(.5,.5)),(s+60,(2,2)),(s+90,(2,2)),(s+120,(5.5,5.5))]
+  s=stamp(16,9);points=[(s,(.5,.5)),(s+30,(.5,.5)),(s+60,(2,2)),(s+90,(2,2)),(s+120,(5.5,5.5)),(s+150,(5.5,5.5))]
   r=detect_exits(points,self.zones(),'2026-11-16','33KY555')
   self.assertEqual(len(r),1);self.assertEqual(r[0]['stamp'],s+60);self.assertEqual(r[0]['arrived_at'],s+120)
   self.assertEqual(detect_exits(points[2:],self.zones(),'2026-11-16','33KY555'),[])
