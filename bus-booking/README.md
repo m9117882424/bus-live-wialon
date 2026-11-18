@@ -76,3 +76,5 @@ python tests/test_scanner_http.py
 Учётные записи водителей: [DRIVER_ACCOUNTS.md](DRIVER_ACCOUNTS.md). До 10 аккаунтов, управление в настройках, персональные сессии и водитель в истории посадок.
 
 Дополнительные проверки: `python tests/test_driver_accounts_http.py`, `node tests/test_scanner_ui.js`, `python tests/browser_acceptance.py` и `python tests/chinese_browser_acceptance.py`. Браузерные проверки используют Puppeteer/Chrome и временную базу.
+
+Оперативная вкладка администратора «Заполняемость»: [OCCUPANCY.md](OCCUPANCY.md). Даты действующих рейсов в пределах горизонта бронирования, показатели «Записано / Свободно» и обновление каждые 30 секунд.

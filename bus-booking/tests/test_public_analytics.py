@@ -1,6 +1,6 @@
 """Isolated checks: never import booking startup, live data, credentials or network Wialon."""
 import copy,hashlib,io,json,os,socket,sqlite3,subprocess,sys,tempfile,time,unittest,urllib.error,urllib.request
-from datetime import datetime
+from datetime import datetime,timedelta
 from pathlib import Path
 from types import SimpleNamespace
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
@@ -120,7 +120,15 @@ class HttpTests(unittest.TestCase):
      self.assertEqual(r['totals']['bookings'],4);self.assertNotIn('private-card',json.dumps(r))
      self.assertEqual(response.headers['X-Robots-Tag'],'noindex, nofollow')
      x=urllib.request.urlopen(base+'/api/export.xlsx?start=2026-11-16&end=2026-11-17');self.assertIn('attachment',x.headers['Content-Disposition']);self.assertTrue(x.read().startswith(b'PK'))
-     for suffix in ['/api/report?start=invalid','/api/report?direction=bad']:
+     for preset in ['today','yesterday','7days']:
+      quick=json.load(urllib.request.urlopen(base+'/api/report?preset='+preset))
+      today=datetime.fromisoformat(quick['generated_at']).date()
+      end=today-timedelta(days=1) if preset=='yesterday' else today
+      start=end-timedelta(days=6) if preset=='7days' else end
+      self.assertEqual((quick['period']['start'],quick['period']['end']),(start.isoformat(),end.isoformat()))
+      output=urllib.request.urlopen(base+'/api/export.xlsx?preset='+preset)
+      self.assertTrue(output.read().startswith(b'PK'))
+     for suffix in ['/api/report?start=invalid','/api/report?direction=bad','/api/report?preset=bad']:
       with self.assertRaises(urllib.error.HTTPError) as error:urllib.request.urlopen(base+suffix)
       self.assertEqual(error.exception.code,400)
      with self.assertRaises(urllib.error.HTTPError) as error:urllib.request.urlopen(urllib.request.Request(base+'/api/report',data=b'{}',method='POST'))

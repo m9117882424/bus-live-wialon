@@ -4,9 +4,9 @@ const $=id=>document.getElementById(id);
 const fmt=new Intl.NumberFormat('ru-RU',{maximumFractionDigits:1});
 const n=v=>v===null||v===undefined?'—':fmt.format(v);
 const escape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const dateLabel=v=>new Date(v+'T12:00:00Z').toLocaleDateString('ru-RU',{day:'numeric',month:'long'});
+const dateLabel=v=>new Date(v+'T12:00:00Z').toLocaleDateString('ru-RU',{timeZone:'Europe/Istanbul',day:'numeric',month:'long'});
 const timeLabel=(v,seconds=false)=>v?new Date(v).toLocaleTimeString('ru-RU',{timeZone:'Europe/Istanbul',hour:'2-digit',minute:'2-digit',second:seconds?'2-digit':undefined}):'—';
-let latest=null,controller=null,requestId=0,timer=null;
+let latest=null,controller=null,requestId=0,timer=null,activePreset=null;
 const openDates=new Set(),closedGroups=new Set();
 const reasons={not_due:'Рейс ещё не начался',wialon_loading:'Загрузка Wialon',wialon_error:'Wialon временно недоступен',no_exit:'Нет достоверного выхода из геозоны',ambiguous:'Несколько подходящих рейсов или автобусов'};
 function status(r){
@@ -74,25 +74,29 @@ function render(result){
  $('export').href='/analytics/api/export.xlsx?'+new URLSearchParams(result.period);$('export').removeAttribute('aria-disabled');
  table();charts();
 }
-async function load(initial=false){
+async function load(initial=false,preset=null){
  const id=++requestId;controller?.abort();controller=new AbortController();clearTimeout(timer);
  $('apply').disabled=true;$('error').hidden=true;
  const query=initial?new URLSearchParams(location.search):new URLSearchParams({start:$('start').value,end:$('end').value,direction:$('direction').value});
+ if(preset)query.set('preset',preset);
  try{
   const response=await fetch('/analytics/api/report?'+query,{signal:controller.signal,credentials:'omit'});const result=await response.json();
   if(!response.ok)throw new Error(typeof result.detail==='string'?result.detail:'Не удалось получить данные. Попробуйте ещё раз.');
   if(id!==requestId)return;
   if(!latest&&result.days.length)openDates.add(result.days[0].date);
   $('start').value=result.period.start;$('end').value=result.period.end;$('direction').value=result.period.direction;
+  activePreset=query.get('preset');
+  document.querySelectorAll('[data-period]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.period===activePreset)));
   render(result);history.replaceState(null,'','?'+new URLSearchParams(result.period));
  }catch(error){
   if(error.name==='AbortError'||id!==requestId)return;
   $('error').hidden=false;$('error').textContent=error.message;
   $('source-state').textContent=latest?'Не удалось обновить · показаны предыдущие данные':'Не удалось загрузить данные';
  }finally{
-  if(id===requestId){$('apply').disabled=false;timer=setTimeout(()=>{if(!document.hidden)load();},latest?.wialon.pending_days?15000:60000);}
+  if(id===requestId){$('apply').disabled=false;timer=setTimeout(()=>{if(!document.hidden)load(false,activePreset);},latest?.wialon.pending_days?15000:60000);}
  }
 }
+document.querySelectorAll('[data-period]').forEach(button=>button.addEventListener('click',()=>load(false,button.dataset.period)));
 $('filters').addEventListener('submit',e=>{e.preventDefault();load();});
 $('export').addEventListener('click',e=>{if($('export').getAttribute('aria-disabled')==='true')e.preventDefault();});
 $('detail-body').addEventListener('click',e=>{
@@ -102,6 +106,6 @@ $('detail-body').addEventListener('click',e=>{
  else return;table();
 });
 $('expand').addEventListener('click',()=>{if(!latest)return;const close=latest.days.every(d=>openDates.has(d.date));for(const d of latest.days)close?openDates.delete(d.date):openDates.add(d.date);closedGroups.clear();table();});
-document.addEventListener('visibilitychange',()=>{if(!document.hidden)load();});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)load(false,activePreset);});
 load(true);
 })();
