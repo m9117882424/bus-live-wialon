@@ -6,6 +6,7 @@ from datetime import date,datetime,time,timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 from .execution import attach_execution
+from scud import attach_scud
 TZ=ZoneInfo('Europe/Istanbul')
 DIRECTIONS={'forward':'В ШОКмаркет','reverse':'В Камп'}
 PLATE=re.compile(r'(?<![A-Z0-9])(\d{2})[ ._-]*([A-Z]{1,3})[ ._-]*(\d{2,4})(?![A-Z0-9])',re.ASCII)
@@ -126,6 +127,11 @@ def totals(rows):
     for name,state in [('performed','performed'),('not_performed','not_performed'),('in_progress','in_progress'),('execution_unknown','unknown'),('execution_ambiguous','ambiguous')]:
         result[name]=sum(r.get('execution_status')==state for r in rows)
     result['execution_pending']=sum(r.get('execution_status') in ('planned','checking') for r in rows)
+    result['scud_count']=sum(r['scud_count'] for r in rows if r.get('scud_count') is not None) if any(r.get('scud_count') is not None for r in rows) else None
+    result['scud_free']=sum(r['scud_free'] for r in rows if r.get('scud_free') is not None) if any(r.get('scud_free') is not None for r in rows) else None
+    result['scud_known_trips']=sum(r.get('scud_count') is not None for r in rows)
+    result['scud_ready_trips']=sum(r.get('scud_status')=='ready' for r in rows)
+    result['scud_ambiguous']=sum(r.get('scud_ambiguous',0) for r in rows)
     result['occupancy_percent']=round(100*result['bookings']/result['capacity'],1) if result['capacity'] else None
     late=[r['delta_minutes'] for r in rows if r['status']=='late'];early=[r['delta_minutes'] for r in rows if r['status']=='early']
     result['average_late_minutes']=round(sum(late)/len(late),1) if late else None
@@ -137,6 +143,7 @@ def build_report(path,start,end,direction,events,readiness,current=None,telemetr
     trips,_=load_trips(path,start,end,current,pad=True);attach_departures(trips,events,readiness,current)
     if fleet is None:_,fleet=load_trips(path,start,end,current)
     attach_execution(trips,events,readiness,telemetry,fleet,current)
+    with connect(path) as connection:attach_scud(trips,connection,current)
     filtered=[r for r in trips if start<=r['date']<=end and (direction=='all' or r['direction']==direction)]
     for r in filtered:r.pop('_hints',None)
     days=[]
@@ -156,4 +163,7 @@ def build_report(path,start,end,direction,events,readiness,current=None,telemetr
         'Рейс состоялся: тот же автобус выехал с начальной остановки (камп или ШОКмаркет) и подтверждён в геозоне «8 - КПП АККУЮ», где пассажиры пересаживаются. Окно выезда ±45 минут, дорога до 90 минут.',
         'Не состоялся: окно закрыто, ни одного полного проезда не найдено и GPS-покрытие всех автобусов достаточно. При разрывах GPS выводится отдельный статус.',
         'На стоянке допускается до 10 минут между GPS-точками в пределах 20 м; в движении — до 3 минут. Это допущение используется при оценке покрытия.',
+        'СКУД: уникальные карты в выбранном автобусе от 30 минут до планового отправления до 5 минут после, границы включены; время Турции.',
+        'СКУД считается по загруженным выгрузкам. При отсутствии выгрузки или однозначного автобуса стоит прочерк. Спорные отметки не назначаются нескольким рейсам.',
+        'Свободно мест по броням и по СКУД считаются отдельно: вместимость минус соответствующее количество. Итог СКУД относится только к рейсам с загруженными данными.',
         'Пустые исторические рейсы восстановлены по действующему расписанию; изменения старого расписания без броней не сохранены.'])

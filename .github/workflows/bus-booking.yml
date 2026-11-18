@@ -32,6 +32,8 @@ jobs:
           python tests/test_public_analytics.py
           python tests/test_occupancy.py
           python tests/test_gps_execution.py
+          python tests/test_scud.py
+          node --check static/admin-scud.js
           node --check static/admin-occupancy.js
           node --check public_analytics/static/analytics.js
           python tests/test_driver_accounts_http.py
@@ -70,3 +72,4 @@ jobs:
           python tests/public_analytics_browser.py
           python tests/occupancy_browser.py
           python tests/gps_execution_browser.py
+          python tests/scud_browser.py
