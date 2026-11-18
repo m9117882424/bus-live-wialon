@@ -32,23 +32,23 @@ function executionSummary(t){
 function card(label,value,foot,color,total){
  return '<section class="stat '+(total?'total':'')+'"><div class="stat-label">'+(color?'<b class="swatch '+color+'"></b>':'')+label+'</div><div class="stat-value">'+n(value)+'</div><div class="stat-foot">'+escape(foot)+'</div></section>';
 }
-function cells(t){
- return '<td>'+n(t.trips)+'</td><td>'+n(t.bookings)+'</td><td>'+n(t.confirmed)+'</td><td>'+n(t.unconfirmed)+'</td><td>'+n(t.free)+'</td><td class="'+(t.early?'count-early':'blank')+'">'+(t.early||'—')+'</td><td class="'+(t.late?'count-late':'blank')+'">'+(t.late||'—')+'</td>';
+function cells(t,scud){
+ return '<td>'+n(t.trips)+'</td><td>'+n(t.bookings)+'</td><td>'+n(t.confirmed)+'</td><td>'+n(t.unconfirmed)+'</td><td>'+n(t.free)+'</td>'+scud+'<td class="'+(t.early?'count-early':'blank')+'">'+(t.early||'—')+'</td><td class="'+(t.late?'count-late':'blank')+'">'+(t.late||'—')+'</td>';
 }
 const noTimes='<td class="blank">—</td><td class="blank">—</td><td></td>';
 function table(){
  let out='';
  for(const day of latest.days){
   const open=openDates.has(day.date);
-  out+='<tr class="date '+(open?'open':'')+'"><td><button type="button" class="disclosure" data-date="'+day.date+'" aria-expanded="'+open+'"><span class="mark" aria-hidden="true">'+(open?'−':'+')+'</span>'+dateLabel(day.date)+'</button></td>' +cells(day.totals)+noTimes+executionSummary(day.totals)+scudSummary(day.totals)+'</tr>';
+  out+='<tr class="date '+(open?'open':'')+'"><td><button type="button" class="disclosure" data-date="'+day.date+'" aria-expanded="'+open+'"><span class="mark" aria-hidden="true">'+(open?'−':'+')+'</span>'+dateLabel(day.date)+'</button></td>' +cells(day.totals,scudSummary(day.totals))+noTimes+executionSummary(day.totals)+'</tr>';
   if(!open)continue;
   for(const g of day.directions){
    const key=day.date+g.direction,expanded=!closedGroups.has(key);
-   out+='<tr class="direction"><td><button type="button" class="disclosure" data-group="'+key+'" aria-expanded="'+expanded+'"><span class="mark" aria-hidden="true">'+(expanded?'−':'+')+'</span><b class="swatch '+(g.direction==='reverse'?'purple':'blue')+'"></b>'+escape(g.label)+'</button></td>' +cells(g.totals)+noTimes+executionSummary(g.totals)+scudSummary(g.totals)+'</tr>';
+   out+='<tr class="direction from-'+g.direction+'"><td><button type="button" class="disclosure" data-group="'+key+'" aria-expanded="'+expanded+'"><span class="mark" aria-hidden="true">'+(expanded?'−':'+')+'</span><b class="swatch '+(g.direction==='reverse'?'purple':'blue')+'"></b>'+escape(g.label)+'</button></td>' +cells(g.totals,scudSummary(g.totals))+noTimes+executionSummary(g.totals)+'</tr>';
    if(!expanded)continue;
    for(const r of g.trips){
     const t={...r,trips:1,early:Number(r.status==='early'),late:Number(r.status==='late')};
-    out+='<tr class="trip"><td><span class="blank">№'+r.route_id+'</span> '+escape(r.name)+'<span class="subline">'+escape(r.vehicle||'Автобус не определён')+'</span></td>'+cells(t)+'<td>'+escape(r.departure)+'</td><td>'+timeLabel(r.actual_at,true)+'</td><td>'+status(r)+'</td>'+executionCells(r)+scudCells(r)+'</tr>';
+    out+='<tr class="trip from-'+g.direction+'"><td><span class="blank">№'+r.route_id+'</span> '+escape(r.name)+'<span class="subline">'+escape(r.vehicle||'Автобус не определён')+'</span></td>'+cells(t,scudCells(r))+'<td>'+escape(r.departure)+'</td><td>'+timeLabel(r.actual_at,true)+'</td><td>'+status(r)+'</td>'+executionCells(r)+'</tr>';
    }
   }
  }
@@ -87,8 +87,8 @@ function render(result){
  $('gps-note').textContent='Выезд не определён: '+n(t.unknown)+' · предстоящих: '+n(t.planned);
  $('period-label').textContent=result.period.start.split('-').reverse().join('.')+' — '+result.period.end.split('-').reverse().join('.');
  $('punctuality').textContent='Вовремя: '+n(t.on_time)+' · ранних: '+n(t.early)+' · с опозданием: '+n(t.late)+' · выезд не определён: '+n(t.unknown)+' · предстоящих: '+n(t.planned);
- const summary=[...result.directions.map(g=>[g.label,g.totals]),['Итого',t]];
- $('summary-body').innerHTML=summary.map(([label,v],i)=>'<tr class="'+(i===summary.length-1?'total-row':'')+'"><td>'+label+'</td><td>'+n(v.trips)+'</td><td>'+n(v.bookings)+'</td><td>'+n(v.confirmed)+'</td><td>'+n(v.unconfirmed)+'</td><td>'+n(v.free)+'</td><td>'+n(v.occupancy_percent)+(v.occupancy_percent===null?'':'%')+'</td><td>'+n(v.early)+'</td><td>'+n(v.late)+'</td><td>'+n(v.performed)+'</td><td>'+n(v.not_performed)+'</td><td>'+n(v.scud_count)+'</td><td>'+n(v.scud_free)+'</td></tr>').join('');
+ const summary=[...result.directions.map(g=>[g.label,g.totals,g.direction]),['Итого',t]];
+ $('summary-body').innerHTML=summary.map(([label,v,direction],i)=>'<tr class="'+(i===summary.length-1?'total-row':'from-'+direction)+'"><td>'+label+'</td><td>'+n(v.trips)+'</td><td>'+n(v.bookings)+'</td><td>'+n(v.confirmed)+'</td><td>'+n(v.unconfirmed)+'</td><td>'+n(v.free)+'</td><td>'+n(v.occupancy_percent)+(v.occupancy_percent===null?'':'%')+'</td><td>'+n(v.scud_count)+'</td><td>'+n(v.scud_free)+'</td><td>'+n(v.early)+'</td><td>'+n(v.late)+'</td><td>'+n(v.performed)+'</td><td>'+n(v.not_performed)+'</td></tr>').join('');
  $('source-state').textContent='Обновлено '+timeLabel(result.generated_at)+(result.wialon.pending_days?' · Wialon загружается':result.wialon.error_days?' · часть Wialon недоступна':'');
  $('methodology').innerHTML=result.notes.map(s=>'<span>'+escape(s)+'</span>').join('')+'<span>Начальная остановка: в ШОКмаркет — «İspanyol kamp / Испанский камп»; в камп — «Шок маркет Бюкеджели». Завершение обоих рейсов — «8 - КПП АККУЮ», место пересадки.</span>';
  $('export').href='/analytics/api/export.xlsx?'+new URLSearchParams(result.period);$('export').removeAttribute('aria-disabled');

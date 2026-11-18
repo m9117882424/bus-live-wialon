@@ -43,7 +43,12 @@ with tempfile.TemporaryDirectory(prefix="bus-gps-browser-") as tmp:
             subprocess.run(["node",str(root/"tests/gps_execution_browser.js"),origin],cwd=root,env=env,check=True,timeout=100)
             url=origin+"/analytics/api/export.xlsx?start=2026-11-16&end=2026-11-17"
             book=load_workbook(io.BytesIO(urllib.request.urlopen(url).read()))
-            assert (book["Сводка"].cell(8,14).value,book["Сводка"].cell(8,15).value)==(3,4)
+            summary=book["Сводка"]
+            headers=[cell.value for cell in summary[5]]
+            total=dict(zip(headers,[cell.value for cell in summary[8]]))
+            assert (total["Состоялись"],total["Не состоялись"])==(3,4)
+            assert headers[headers.index("Ранних")-3:headers.index("Ранних")]==["Факт по СКУД","Свободно мест по СКУД","Рейсов с данными СКУД"]
+            assert summary.cell(6,1).fill.fgColor.rgb!=summary.cell(7,1).fill.fgColor.rgb
             assert book["Рейсы"].cell(1,18).value=="Прибытие на КПП"
             rows=list(book["Рейсы"])[1:]
             assert sum(row[16].value=="Состоялся" for row in rows)==3
