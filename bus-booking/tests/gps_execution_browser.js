@@ -14,7 +14,7 @@ let puppeteer;try{puppeteer=require('puppeteer')}catch{puppeteer=require('puppet
   assert.deepEqual(await page.$$eval('#metrics-execution .stat-value',items=>items.map(item=>item.textContent)),['3','4']);
   assert((await page.$eval('#execution-state',item=>item.textContent)).includes('недостаточно GPS: 1'));
   for(const selector of ['.details','.summary-table']){
-   const headers=await page.$eval(selector+' th',items=>items.map(item=>item.textContent));
+   const headers=await page.$$eval(selector+' th',items=>items.map(item=>item.textContent));
    const early=headers.indexOf('Ранних');
    assert.deepEqual(headers.slice(early-2,early),['Факт по СКУД','Свободно мест по СКУД']);
   }
