@@ -7,6 +7,7 @@ from openpyxl import load_workbook
 root=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(root))
 from public_analytics.wialon import Collector
+from public_analytics.execution import GPS_VERSION
 TZ=ZoneInfo("Europe/Istanbul")
 with tempfile.TemporaryDirectory(prefix="bus-gps-browser-") as tmp:
     db=Path(tmp)/"fixture.sqlite";cache=Path(tmp)/"cache.sqlite"
@@ -28,8 +29,8 @@ with tempfile.TemporaryDirectory(prefix="bus-gps-browser-") as tmp:
             if day=="2026-11-17" and bus==buses[1]:
                 coverage=[[start,int(midnight.replace(hour=17).timestamp())],
                           [int(midnight.replace(hour=20).timestamp()),end]]
-            payload=dict(version=2,events=events,coverage=coverage,collected_at=end,point_count=200)
-            with collector.connection() as c:c.execute("INSERT INTO gps_tracks_v2 VALUES(?,?,?,?,?)",(day,bus,time.time(),"ready",json.dumps(payload)))
+            payload=dict(version=GPS_VERSION,events=events,coverage=coverage,collected_at=end,point_count=200)
+            with collector.connection() as c:c.execute("INSERT INTO gps_tracks_v3 VALUES(?,?,?,?,?)",(day,bus,time.time(),"ready",json.dumps(payload)))
     with socket.socket() as sock:sock.bind(("127.0.0.1",0));port=sock.getsockname()[1]
     origin="http://127.0.0.1:"+str(port)
     env={**os.environ,"BUS_ANALYTICS_DB":str(db),"BUS_ANALYTICS_CACHE":str(cache),"BUS_ANALYTICS_COLLECTOR":"0"}
@@ -43,6 +44,7 @@ with tempfile.TemporaryDirectory(prefix="bus-gps-browser-") as tmp:
             url=origin+"/analytics/api/export.xlsx?start=2026-11-16&end=2026-11-17"
             book=load_workbook(io.BytesIO(urllib.request.urlopen(url).read()))
             assert (book["Сводка"].cell(8,14).value,book["Сводка"].cell(8,15).value)==(3,4)
+            assert book["Рейсы"].cell(1,18).value=="Прибытие на КПП"
             rows=list(book["Рейсы"])[1:]
             assert sum(row[16].value=="Состоялся" for row in rows)==3
             assert all(isinstance(row[17].value,datetime) for row in rows if row[16].value=="Состоялся")

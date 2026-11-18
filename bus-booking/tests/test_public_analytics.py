@@ -89,9 +89,9 @@ class FakeZone:
  def __init__(self,role,label,bounds,points,radius=0):self.bounds=bounds
  def contains(self,y,x):return self.bounds[0]<=y<=self.bounds[1] and self.bounds[2]<=x<=self.bounds[3]
 class ExitTests(unittest.TestCase):
- def zones(self):return {'forward':FakeZone('','',(0,1,0,1),()),'reverse':FakeZone('','',(5,6,5,6),())}
+ def zones(self):return {'forward':FakeZone('','',(0,1,0,1),()),'reverse':FakeZone('','',(5,6,5,6),()),'kpp':FakeZone('','',(10,11,10,11),())}
  def test_confirmed_exit_destination_gaps_initial_outside_and_jitter(self):
-  s=stamp(16,9);points=[(s,(.5,.5)),(s+30,(.5,.5)),(s+60,(2,2)),(s+90,(2,2)),(s+120,(5.5,5.5)),(s+150,(5.5,5.5))]
+  s=stamp(16,9);points=[(s,(.5,.5)),(s+30,(.5,.5)),(s+60,(2,2)),(s+90,(2,2)),(s+120,(10.5,10.5)),(s+150,(10.5,10.5))]
   r=detect_exits(points,self.zones(),'2026-11-16','33KY555')
   self.assertEqual(len(r),1);self.assertEqual(r[0]['stamp'],s+60);self.assertEqual(r[0]['arrived_at'],s+120)
   self.assertEqual(detect_exits(points[2:],self.zones(),'2026-11-16','33KY555'),[])
@@ -99,9 +99,10 @@ class ExitTests(unittest.TestCase):
   self.assertEqual(detect_exits([points[0],points[1],points[2],(s+80,(.5,.5))],self.zones(),'2026-11-16','33KY555'),[])
  def test_exact_existing_geofence_ids_and_shared_geometry(self):
   adapter=SimpleNamespace(Zone=FakeZone,valid_coordinates=lambda y,x:isinstance(y,(int,float)) and isinstance(x,(int,float)))
-  raw=[(600894911,{'id':30,'n':'Camp','t':3,'p':[{'x':33,'y':36,'r':100}]}),(601276657,{'id':12,'n':'Shop Buyukeceli','t':2,'p':[{'x':33,'y':36},{'x':34,'y':36},{'x':34,'y':37}]}),(600894911,{'id':39,'n':'Wrong Tasucu shop','t':2,'p':[]})]
-  self.assertEqual(set(select_zones(adapter,raw)),{'forward','reverse'})
+  raw=[(600894911,{'id':30,'n':'Camp','t':3,'p':[{'x':33,'y':36,'r':100}]}),(601276657,{'id':12,'n':'Shop Buyukeceli','t':2,'p':[{'x':33,'y':36},{'x':34,'y':36},{'x':34,'y':37}]}),(600894911,{'id':39,'n':'Wrong Tasucu shop','t':2,'p':[]}),(600148718,{'id':55,'n':'8 - КПП АККУЮ','t':3,'p':[{'x':33,'y':36,'r':100}]}),(600894911,{'id':8,'n':'Wrong numeric ID 8','t':3,'p':[]})]
+  self.assertEqual(set(select_zones(adapter,raw)),{'forward','reverse','kpp'})
   with self.assertRaises(ValueError):select_zones(adapter,raw[:1])
+  with self.assertRaises(ValueError):select_zones(adapter,[row for row in raw if row[1]['id']!=55])
 class HttpTests(unittest.TestCase):
  def test_public_page_api_xlsx_and_read_only_methods(self):
   with tempfile.TemporaryDirectory() as tmp:
