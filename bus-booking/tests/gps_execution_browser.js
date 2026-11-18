@@ -9,6 +9,8 @@ let puppeteer;try{puppeteer=require('puppeteer')}catch{puppeteer=require('puppet
   await page.setViewport({width:1500,height:1100});
   await page.goto(origin+'/analytics/?start=2026-11-16&end=2026-11-17',{waitUntil:'networkidle0'});
   await page.waitForSelector('#metrics-execution .stat-value');
+  assert((await page.$eval('#methodology',item=>item.textContent)).includes('8 - КПП АККУЮ'));
+  assert.equal(await page.$eval('.details thead th:last-child',item=>item.textContent),'Прибытие на КПП');
   assert.deepEqual(await page.$$eval('#metrics-execution .stat-value',items=>items.map(item=>item.textContent)),['3','4']);
   assert((await page.$eval('#execution-state',item=>item.textContent)).includes('недостаточно GPS: 1'));
   await page.click('#expand');
@@ -17,6 +19,7 @@ let puppeteer;try{puppeteer=require('puppeteer')}catch{puppeteer=require('puppet
   assert.equal(await page.$$eval('.execution-status.unknown',items=>items.length),1);
   assert((await page.$eval('.execution-status.not_performed',item=>item.getAttribute('title'))).includes('GPS'));
   const report=await (await fetch(origin+'/analytics/api/report?start=2026-11-16&end=2026-11-17')).json();
+  assert.equal(report.wialon.geofences.kpp,'8 - КПП АККУЮ');
   for(const secret of ['coverage','query_from','query_to','point_count','private-card','private-token'])assert(!JSON.stringify(report).includes(secret));
   for(const width of [1500,1024,390,320]){
    await page.setViewport({width,height:1100});

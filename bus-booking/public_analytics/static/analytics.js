@@ -14,7 +14,7 @@ function status(r){
  return '<span class="pill '+r.status+'" title="'+escape(reasons[r.reason]||'Подтверждённый выход Wialon')+'">'+label+'</span>';
 }
 const executionLabels={performed:'Состоялся',not_performed:'Не состоялся',planned:'Предстоящий',in_progress:'В пути',checking:'Проверяется',unknown:'Недостаточно GPS',ambiguous:'Неоднозначно'};
-const executionReasons={complete_route:'Подтверждены выезд и прибытие того же автобуса',no_departure:'Ни один автобус не выехал в окне рейса при полном GPS-покрытии',no_complete_route:'Ни один автобус не завершил маршрут в окне рейса при полном GPS-покрытии',not_due:'Рейс ещё не начался',awaiting_arrival:'Есть выезд; ожидается прибытие',window_open:'Окно проверки ещё не завершилось',gps_loading:'История GPS загружается',gps_error:'Часть истории GPS недоступна',gps_gaps:'Разрывы GPS хотя бы у одного автобуса',no_fleet:'Нет автобусов для проверки',ambiguous:'Проезд подходит нескольким рейсам'};
+const executionReasons={complete_route:'Подтверждены выезд и прибытие того же автобуса на КПП АККУЮ',no_departure:'Ни один автобус не выехал в окне рейса при полном GPS-покрытии',no_complete_route:'Ни один автобус не завершил маршрут в окне рейса при полном GPS-покрытии',not_due:'Рейс ещё не начался',awaiting_arrival:'Есть выезд; ожидается прибытие на КПП АККУЮ',window_open:'Окно проверки ещё не завершилось',gps_loading:'История GPS загружается',gps_error:'Часть истории GPS недоступна',gps_gaps:'Разрывы GPS хотя бы у одного автобуса',no_fleet:'Нет автобусов для проверки',ambiguous:'Проезд подходит нескольким рейсам'};
 function executionCells(r){
  const message=(executionReasons[r.execution_reason]||'')+(r.execution_status==='performed'?'':' · проверка до '+dateLabel(r.execution_deadline.slice(0,10))+' '+timeLabel(r.execution_deadline));
  const arrival=r.arrival_at?timeLabel(r.arrival_at,true)+(r.arrival_at.slice(0,10)!==r.date?'<span class="subline">'+dateLabel(r.arrival_at.slice(0,10))+'</span>':''):'—';
@@ -74,7 +74,7 @@ function render(result){
  latest=result;const t=result.totals;
  $('metrics-primary').innerHTML=card('Рейсов по расписанию',t.trips,'По расписанию за период',null,true)+card('В ШОКмаркет',t.forward,'Из Испанского кампа','blue')+card('В Камп',t.reverse,'Из ШОКмаркета Бюкеджели','purple');
  $('metrics-secondary').innerHTML=card('Количество броней',t.bookings,'Без отменённых')+card('Посадка подтверждена',t.confirmed,t.bookings?n(t.confirmed/t.bookings*100)+'% от всех броней':'Броней пока нет','green')+card('Посадка не подтверждена',t.unconfirmed,'Нет отметки водителя','amber')+card('Свободных мест',t.free,'Из '+n(t.capacity)+' мест по расписанию')+card('Опозданий',t.late,t.late?'В среднем +'+n(t.average_late_minutes)+' мин':'Нет подтверждённых опозданий','red')+card('Ранних выездов',t.early,t.early?'Максимум −'+n(t.max_early_minutes)+' мин':'Нет подтверждённых ранних выездов','amber');
- $('metrics-execution').innerHTML=card('Рейсы состоялись',t.performed,'Выезд и прибытие подтверждены GPS','green')+card('Рейсы не состоялись',t.not_performed,'Проезд не найден при полном GPS-покрытии','red');
+ $('metrics-execution').innerHTML=card('Рейсы состоялись',t.performed,'От начальной остановки до КПП АККУЮ','green')+card('Рейсы не состоялись',t.not_performed,'Проезд не найден при полном GPS-покрытии','red');
  $('execution-state').textContent='В пути: '+n(t.in_progress)+' · ожидают проверки: '+n(t.execution_pending)+' · недостаточно GPS: '+n(t.execution_unknown)+' · неоднозначно: '+n(t.execution_ambiguous);
  $('gps-note').textContent='Выезд не определён: '+n(t.unknown)+' · предстоящих: '+n(t.planned);
  $('period-label').textContent=result.period.start.split('-').reverse().join('.')+' — '+result.period.end.split('-').reverse().join('.');
@@ -82,7 +82,7 @@ function render(result){
  const summary=[...result.directions.map(g=>[g.label,g.totals]),['Итого',t]];
  $('summary-body').innerHTML=summary.map(([label,v],i)=>'<tr class="'+(i===summary.length-1?'total-row':'')+'"><td>'+label+'</td><td>'+n(v.trips)+'</td><td>'+n(v.bookings)+'</td><td>'+n(v.confirmed)+'</td><td>'+n(v.unconfirmed)+'</td><td>'+n(v.free)+'</td><td>'+n(v.occupancy_percent)+(v.occupancy_percent===null?'':'%')+'</td><td>'+n(v.early)+'</td><td>'+n(v.late)+'</td><td>'+n(v.performed)+'</td><td>'+n(v.not_performed)+'</td></tr>').join('');
  $('source-state').textContent='Обновлено '+timeLabel(result.generated_at)+(result.wialon.pending_days?' · Wialon загружается':result.wialon.error_days?' · часть Wialon недоступна':'');
- $('methodology').innerHTML=result.notes.map(s=>'<span>'+escape(s)+'</span>').join('')+'<span>В ШОКмаркет — «İspanyol kamp / Испанский камп». В Камп — «Шок маркет Бюкеджели».</span>';
+ $('methodology').innerHTML=result.notes.map(s=>'<span>'+escape(s)+'</span>').join('')+'<span>Начальная остановка: в ШОКмаркет — «İspanyol kamp / Испанский камп»; в камп — «Шок маркет Бюкеджели». Завершение обоих рейсов — «8 - КПП АККУЮ», место пересадки.</span>';
  $('export').href='/analytics/api/export.xlsx?'+new URLSearchParams(result.period);$('export').removeAttribute('aria-disabled');
  table();charts();
 }

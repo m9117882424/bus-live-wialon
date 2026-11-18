@@ -6,8 +6,9 @@ from datetime import date,datetime,timedelta
 from pathlib import Path
 from .data import TZ
 from .execution import DEPARTURE_WINDOW, MAX_TRAVEL, MAX_GPS_GAP, MAX_IDLE_GAP, MIN_ZONE_SECONDS, GPS_VERSION
-ZONE_IDS={'forward':(600894911,30),'reverse':(601276657,12)}
-ZONE_LABELS={'forward':'İspanyol kamp / Испанский камп','reverse':'Шок маркет Бюкеджели'}
+# '8' is the display prefix; the verified Wialon zone ID is 55 in resource 600148718.
+ZONE_IDS={'forward':(600894911,30),'reverse':(601276657,12),'kpp':(600148718,55)}
+ZONE_LABELS={'forward':'İspanyol kamp / Испанский камп','reverse':'Шок маркет Бюкеджели','kpp':'8 - КПП АККУЮ'}
 def load_adapter(path=None):
     path=Path(path or os.environ.get('BUS_WIALON_ADAPTER','/opt/bdd-bus-report/current/geo_api.py'))
     spec=importlib.util.spec_from_file_location('_booking_shared_wialon_geo',path)
@@ -32,7 +33,7 @@ def select_zones(adapter,raw):
             lat,lon=zip(*coords);bounds=(min(lat),max(lat),min(lon),max(lon))
         else:raise ValueError('Unsupported configured geofence')
         zones[direction]=adapter.Zone('stop',z['n'],bounds,coords,radius)
-    if set(zones)!=set(ZONE_IDS):raise ValueError('Configured departure geofences are missing')
+    if set(zones)!=set(ZONE_IDS):raise ValueError('Required origin or KPP geofence is missing')
     return zones
 
 def continuous_edge(previous, point):
@@ -49,13 +50,13 @@ def track_evidence(points,zones,day,plate,start=None,end=None):
     for i,point in enumerate(points):
         stamp,(lat,lon)=point
         continuous=bool(i and continuous_edge(points[i-1],point))
-        mask=int(zones['forward'].contains(lat,lon))+2*int(zones['reverse'].contains(lat,lon))
+        mask=int(zones['forward'].contains(lat,lon))+2*int(zones['reverse'].contains(lat,lon))+4*int(zones['kpp'].contains(lat,lon))
         projected.append((stamp,mask,continuous))
         if continuous:coverage[-1][1]=stamp
         else:coverage.append([stamp,stamp])
     events=[]
     midnight=datetime.combine(date.fromisoformat(day),datetime.min.time(),TZ).timestamp()
-    for direction,origin_bit,destination_bit in [('forward',1,2),('reverse',2,1)]:
+    for direction,origin_bit,destination_bit in [('forward',1,4),('reverse',2,4)]:
         inside_since=last_inside=first_out=None
         first_index=None
         for i,(stamp,mask,continuous) in enumerate(projected):
@@ -98,7 +99,7 @@ class Collector:
         with self.connection() as c:
             c.execute('PRAGMA journal_mode=WAL')
             # Separate derived cache preserves safe rollback to the previous collector.
-            c.execute('CREATE TABLE IF NOT EXISTS gps_tracks_v2(day TEXT,plate TEXT,updated REAL,status TEXT,payload TEXT,PRIMARY KEY(day,plate))')
+            c.execute('CREATE TABLE IF NOT EXISTS gps_tracks_v3(day TEXT,plate TEXT,updated REAL,status TEXT,payload TEXT,PRIMARY KEY(day,plate))')
         self.enabled=enabled;self.pending=set();self.lock=threading.Lock();self.jobs=queue.Queue(maxsize=256)
         self.stopped=threading.Event();self.adapter=None;self.catalog_at=0;self.units={};self.zones={}
         if enabled:
@@ -112,7 +113,7 @@ class Collector:
     def request(self,start,end,plates,current=None,active_days=None):
         current=current or datetime.now(TZ);last=min(date.fromisoformat(end),current.date());first=date.fromisoformat(start)
         with self.connection() as c:
-            cache={(r[0],r[1]):r for r in c.execute('SELECT day,plate,updated,status,payload FROM gps_tracks_v2 WHERE day BETWEEN ? AND ?',(start,end))}
+            cache={(r[0],r[1]):r for r in c.execute('SELECT day,plate,updated,status,payload FROM gps_tracks_v3 WHERE day BETWEEN ? AND ?',(start,end))}
         events=[];readiness={};telemetry={};updates=[];days=[]
         while first<=last:
             if active_days is None or first.isoformat() in active_days:days.append(first.isoformat())
@@ -170,13 +171,13 @@ class Collector:
                 except Exception:
                     state='error'
                     with self.connection() as c:
-                        old=c.execute('SELECT payload FROM gps_tracks_v2 WHERE day=? AND plate=?',(day,plate)).fetchone()
+                        old=c.execute('SELECT payload FROM gps_tracks_v3 WHERE day=? AND plate=?',(day,plate)).fetchone()
                     try:payload=json.loads(old[0]) if old else None
                     except (TypeError,ValueError):payload=None
                     if not isinstance(payload,dict) or payload.get('version')!=GPS_VERSION:
                         payload=dict(version=GPS_VERSION,events=[],coverage=[])
                 with self.connection() as c:
-                    c.execute('INSERT OR REPLACE INTO gps_tracks_v2 VALUES(?,?,?,?,?)',(day,plate,time.time(),state,json.dumps(payload,separators=(',',':'))))
+                    c.execute('INSERT OR REPLACE INTO gps_tracks_v3 VALUES(?,?,?,?,?)',(day,plate,time.time(),state,json.dumps(payload,separators=(',',':'))))
             finally:
                 with self.lock:self.pending.discard((day,plate))
                 self.jobs.task_done()

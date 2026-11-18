@@ -9,7 +9,7 @@ MAX_TRAVEL = 90 * 60
 MAX_GPS_GAP = 180
 MAX_IDLE_GAP = 600
 MIN_ZONE_SECONDS = 20
-GPS_VERSION = 2
+GPS_VERSION = 3
 
 EXECUTION_LABELS = {
     "performed": "Состоялся", "not_performed": "Не состоялся",
@@ -17,7 +17,7 @@ EXECUTION_LABELS = {
     "checking": "Проверяется", "unknown": "Недостаточно GPS", "ambiguous": "Неоднозначно",
 }
 EXECUTION_REASONS = {
-    "complete_route": "Подтверждены выезд и прибытие того же автобуса",
+    "complete_route": "Подтверждены выезд и прибытие того же автобуса на КПП АККУЮ",
     "no_departure": "Ни один автобус не выехал в окне рейса; GPS-покрытие полное",
     "no_complete_route": "Ни один автобус не завершил маршрут в окне рейса; GPS-покрытие полное",
     "not_due": "Рейс ещё не начался", "awaiting_arrival": "Есть выезд; ожидается подтверждение прибытия",

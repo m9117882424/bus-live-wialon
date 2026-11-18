@@ -116,9 +116,9 @@ class Zone:
 
 class DetectorTests(unittest.TestCase):
     def setUp(self):
-        self.zones={"forward":Zone(0,1),"reverse":Zone(5,6)}
+        self.zones={"forward":Zone(0,1),"reverse":Zone(5,6),"kpp":Zone(10,11)}
         self.points=[(P,(.5,.5)),(P+30,(.5,.5)),(P+60,(2,2)),(P+90,(2,2)),
-                     (P+120,(5.5,5.5)),(P+150,(5.5,5.5))]
+                     (P+120,(10.5,10.5)),(P+150,(10.5,10.5))]
 
     def evidence(self,points):
         return track_evidence(points,self.zones,DAY,"33KY555")
@@ -131,19 +131,29 @@ class DetectorTests(unittest.TestCase):
         self.assertTrue(e["route_complete"])
         self.assertFalse(self.evidence(self.points[:-1])["events"][0]["route_complete"])
 
+    def test_other_scheduled_stop_does_not_complete_a_journey_without_kpp(self):
+        for origin,destination,direction in [((.5,.5),(5.5,5.5),"forward"),((5.5,5.5),(.5,.5),"reverse")]:
+            points=[(P,origin),(P+30,origin),(P+60,(2,2)),(P+90,(2,2)),(P+120,destination),(P+150,destination)]
+            events=self.evidence(points)["events"]
+            self.assertEqual(events[0]["direction"],direction)
+            self.assertFalse(events[0]["route_complete"])
+
+    def test_kpp_visit_without_origin_departure_does_not_complete_a_journey(self):
+        self.assertEqual(self.evidence([(P,(10.5,10.5)),(P+30,(10.5,10.5)),(P+60,(2,2)),(P+90,(2,2))])["events"],[])
+
     def test_first_external_point_can_already_be_in_destination(self):
-        result=self.evidence(self.points[:2]+[(P+150,(5.5,5.5)),(P+180,(5.5,5.5))])
+        result=self.evidence(self.points[:2]+[(P+150,(10.5,10.5)),(P+180,(10.5,10.5))])
         self.assertTrue(result["events"][0]["route_complete"])
         self.assertEqual(result["events"][0]["arrived_at"],P+150)
 
     def test_return_to_origin_does_not_reuse_a_later_arrival(self):
         points=self.points[:4]+[(P+110,(.5,.5)),(P+140,(.5,.5)),(P+170,(2,2)),
-                              (P+200,(2,2)),(P+230,(5.5,5.5)),(P+260,(5.5,5.5))]
+                              (P+200,(2,2)),(P+230,(10.5,10.5)),(P+260,(10.5,10.5))]
         events=self.evidence(points)["events"]
         self.assertEqual([e["route_complete"] for e in events],[False,True])
 
     def test_moving_gap_invalidates_route_and_coverage(self):
-        result=self.evidence(self.points[:4]+[(P+400,(5.5,5.5)),(P+430,(5.5,5.5))])
+        result=self.evidence(self.points[:4]+[(P+400,(10.5,10.5)),(P+430,(10.5,10.5))])
         self.assertFalse(result["events"][0]["route_complete"])
         self.assertEqual(len(result["coverage"]),2)
 
@@ -155,7 +165,7 @@ class DetectorTests(unittest.TestCase):
 
     def test_wrong_direction_and_initially_outside_do_not_create_departure(self):
         self.assertEqual(self.evidence(self.points[2:])["events"],[])
-        reverse=[(t,(6-y,6-x)) for t,(y,x) in self.points]
+        reverse=[(P,(5.5,5.5)),(P+30,(5.5,5.5))]+self.points[2:]
         events=self.evidence(reverse)["events"]
         self.assertEqual(events[0]["direction"],"reverse");self.assertTrue(events[0]["route_complete"])
 
@@ -167,21 +177,24 @@ class CacheAndReportTests(unittest.TestCase):
             with sqlite3.connect(path) as c:
                 c.execute("CREATE TABLE tracks(day,plate,updated,status,events)")
                 c.execute("INSERT INTO tracks VALUES(?,?,?,?,?)",(DAY,FLEET[0],0,"ready",json.dumps([event()])))
+                c.execute("CREATE TABLE gps_tracks_v2(day,plate,updated,status,payload)")
+                c.execute("INSERT INTO gps_tracks_v2 VALUES(?,?,?,?,?)",(DAY,FLEET[0],time.time(),"ready",json.dumps(dict(version=2,events=[event()],coverage=[[P-10000,P+20000]]))))
             collector=Collector(path,enabled=False)
             events,ready,metadata,telemetry=collector.request("2026-11-16",DAY,FLEET,PLAN+timedelta(hours=4),{DAY})
             self.assertEqual(events,[]);self.assertEqual(ready,{DAY:"loading"})
             self.assertEqual(set(telemetry),{(DAY,bus) for bus in FLEET})
             with sqlite3.connect(path) as c:self.assertEqual(c.execute("SELECT COUNT(*) FROM tracks").fetchone()[0],1)
+            with sqlite3.connect(path) as c:self.assertEqual(c.execute("SELECT COUNT(*) FROM gps_tracks_v2").fetchone()[0],1)
 
     def test_fetch_error_preserves_previously_proven_complete_route(self):
         with tempfile.TemporaryDirectory() as temp:
             collector=Collector(Path(temp)/"cache.sqlite",enabled=False)
             payload=dict(version=GPS_VERSION,events=[event()],coverage=[[P-10000,P+20000]],collected_at=P+1000)
-            with collector.connection() as c:c.execute("INSERT INTO gps_tracks_v2 VALUES(?,?,?,?,?)",(DAY,FLEET[0],0,"ready",json.dumps(payload)))
+            with collector.connection() as c:c.execute("INSERT INTO gps_tracks_v3 VALUES(?,?,?,?,?)",(DAY,FLEET[0],0,"ready",json.dumps(payload)))
             def fail(*args):raise OSError("synthetic network failure")
             collector.fetch=fail;collector.pending.add((DAY,FLEET[0]));collector.jobs.put((DAY,FLEET[0]))
             thread=threading.Thread(target=collector.worker);thread.start();collector.jobs.join();collector.close();thread.join(timeout=3)
-            with collector.connection() as c:state,text=c.execute("SELECT status,payload FROM gps_tracks_v2").fetchone()
+            with collector.connection() as c:state,text=c.execute("SELECT status,payload FROM gps_tracks_v3").fetchone()
             self.assertEqual(state,"error");self.assertTrue(json.loads(text)["events"][0]["route_complete"])
 
     def test_report_totals_filtering_and_excel_include_execution_without_passenger_data(self):
