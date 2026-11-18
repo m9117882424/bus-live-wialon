@@ -28,6 +28,13 @@ def validate_period(start,end,current=None):
     if (b-a).days>30:raise ValueError('Выберите период не более 31 дня.')
     if a<date(2020,1,1) or b>current.date()+timedelta(days=730):raise ValueError('Период вне допустимого диапазона.')
     return a,b
+def quick_period(preset,current=None):
+    current=(current or datetime.now(TZ)).astimezone(TZ)
+    end=current.date()
+    if preset=='yesterday':end-=timedelta(days=1)
+    elif preset not in ('today','7days'):raise ValueError('Выберите период: сегодня, вчера или 7 дней.')
+    start=end-timedelta(days=6) if preset=='7days' else end
+    return start.isoformat(),end.isoformat()
 def default_period(path,current=None):
     current=current or datetime.now(TZ)
     with connect(path) as c:row=c.execute('SELECT MIN(starts_on) FROM route_service_periods').fetchone()

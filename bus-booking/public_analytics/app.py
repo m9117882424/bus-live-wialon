@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from openpyxl import Workbook
 from openpyxl.styles import Alignment,Font,PatternFill
 from openpyxl.utils import get_column_letter
-from .data import TZ,build_report,default_period,load_trips,validate_period
+from .data import TZ,build_report,default_period,load_trips,validate_period,quick_period
 from .wialon import Collector
 DB=Path(os.environ.get('BUS_ANALYTICS_DB','bus.db'))
 STATIC=Path(__file__).parent/'static'
@@ -40,9 +40,10 @@ def health():
         start,end=default_period(DB);load_trips(DB,start,end)
     except (sqlite3.Error,ValueError,OSError):raise HTTPException(503,'Источник бронирований временно недоступен.') from None
     return {'ok':True}
-def report(start=None,end=None,direction='all'):
+def report(start=None,end=None,direction='all',preset=None):
     try:
         current=datetime.now(TZ);defaults=default_period(DB,current);start=start or defaults[0];end=end or defaults[1]
+        if preset is not None:start,end=quick_period(preset,current)
         validate_period(start,end,current)
         if direction not in ('all','forward','reverse'):raise ValueError('Выберите направление из списка.')
         trips,fleet=load_trips(DB,start,end,current)
@@ -53,7 +54,7 @@ def report(start=None,end=None,direction='all'):
     except ValueError as error:raise HTTPException(400,str(error)) from None
     except (sqlite3.Error,OSError):raise HTTPException(503,'Источник бронирований временно недоступен.') from None
 @app.get('/analytics/api/report')
-def get_report(start:str|None=None,end:str|None=None,direction:str='all'):return report(start,end,direction)
+def get_report(start:str|None=None,end:str|None=None,direction:str='all',preset:str|None=None):return report(start,end,direction,preset)
 STATUS={'planned':'Предстоящий','on_time':'Вовремя','early':'Рано','late':'С опозданием','unknown':'Нет подтверждённого выезда'}
 REASONS={'not_due':'Рейс ещё не начался','wialon_loading':'Загрузка Wialon','wialon_error':'Wialon временно недоступен',
     'no_exit':'Нет достоверного выхода из геозоны','ambiguous':'Несколько подходящих рейсов или автобусов','wialon_zone_exit':'Подтверждённый выход Wialon'}
@@ -105,7 +106,7 @@ def excel(result):
     for row in rules:row[0].alignment=Alignment(wrap_text=True);rules.row_dimensions[row[0].row].height=31
     out=io.BytesIO();wb.save(out);return out.getvalue()
 @app.get('/analytics/api/export.xlsx')
-def export(start:str|None=None,end:str|None=None,direction:str='all'):
-    r=report(start,end,direction);name=f'bus-analytics-{r["period"]["start"]}-{r["period"]["end"]}.xlsx'
+def export(start:str|None=None,end:str|None=None,direction:str='all',preset:str|None=None):
+    r=report(start,end,direction,preset);name=f'bus-analytics-{r["period"]["start"]}-{r["period"]["end"]}.xlsx'
     return Response(excel(r),media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         headers={'Content-Disposition':f'attachment; filename="{name}"'})

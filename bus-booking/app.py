@@ -18,6 +18,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 from fortunes import FORTUNES, fortune_tr, choose_fortune
 from fortune_localizations import fortune_localized
+from occupancy import occupancy_report
 
 BASE='/bus'; DB=os.environ.get('BUS_DB','bus.db'); TZ=ZoneInfo('Europe/Istanbul')
 PASS=os.environ['BUS_ADMIN_PASSWORD']; cipher=Fernet(os.environ['BUS_FERNET_KEY'].encode()); app=FastAPI(docs_url=None,redoc_url=None,openapi_url=None); auth=HTTPBasic()
@@ -1063,3 +1064,31 @@ def admin_booking_javascript():
 @app.post(BASE+'/api/admin/book',dependencies=[Depends(admin)])
 def admin_book(b:Booking):
  return book(b)
+
+# Operational counts use a read transaction; booking mutations remain unchanged.
+@app.get(BASE+'/api/admin/occupancy',dependencies=[Depends(admin)])
+def get_admin_occupancy(date:str=''):
+ with db() as c:
+  c.execute('PRAGMA query_only=ON');c.execute('BEGIN')
+  try:return occupancy_report(c,now(),booking_horizon_hours(c),date)
+  except ValueError as error:raise HTTPException(400,str(error)) from None
+
+@app.get(BASE+'/admin-occupancy.js',dependencies=[Depends(admin)])
+def admin_occupancy_javascript():
+ return Response((Path(__file__).resolve().parent/'static'/'admin-occupancy.js').read_bytes(),media_type='text/javascript')
+
+@app.get(BASE+'/admin-occupancy.css',dependencies=[Depends(admin)])
+def admin_occupancy_stylesheet():
+ return Response((Path(__file__).resolve().parent/'static'/'admin-occupancy.css').read_bytes(),media_type='text/css')
+
+OCCUPANCY_PANEL="""<section id="occupancyPanel" style="display:none" aria-label="Заполняемость"><div class="box"><div class="occupancy-toolbar"><label><span data-occupancy-i="date">Дата рейсов</span><select id="occupancyDate"></select></label><button type="button" id="occupancyRefresh" data-occupancy-i="refresh">Обновить</button><span id="occupancyUpdated" class="muted" role="status" aria-live="polite"></span></div><p id="occupancyError" class="alert" role="alert" hidden></p><div id="occupancySummary"></div><div id="occupancyTrips" class="schedule-columns"></div></div></section>"""
+ADMIN=ADMIN.replace('<button id="whiteTab"','<button id="occupancyTab" class="secondary" onclick="showTab(&quot;occupancy&quot;)">Заполняемость</button><button id="whiteTab"',1)
+ADMIN=ADMIN.replace('<section id="whitePanel"',OCCUPANCY_PANEL+'<section id="whitePanel"',1)
+ADMIN=ADMIN.replace('function showTab(which){','function showTab(which){window.BusOccupancy?.show(which);',1)
+ADMIN=ADMIN.replace('function renderLanguage(){','function renderLanguage(){window.BusOccupancy?.renderLanguage();',1)
+ADMIN=ADMIN.replace('</head>','<link rel="stylesheet" href="/bus/admin-occupancy.css"></head>',1)
+ADMIN=ADMIN.replace('</body></html>','<script src="/bus/admin-occupancy.js"></script></body></html>',1)
+
+# An inline handler's bare "lang" resolves to HTMLElement.lang, not the admin state.
+ADMIN=ADMIN.replace("onclick=\"lang=lang==='ru'?'tr':'ru';renderLanguage()\"",'onclick="toggleAdminLanguage()"',1)
+ADMIN=ADMIN.replace('function renderLanguage(){',"function toggleAdminLanguage(){lang=lang==='ru'?'tr':'ru';renderLanguage()}function renderLanguage(){",1)
