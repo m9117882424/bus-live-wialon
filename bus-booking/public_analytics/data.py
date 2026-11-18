@@ -5,6 +5,7 @@ from contextlib import contextmanager
 from datetime import date,datetime,time,timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
+from .execution import attach_execution
 TZ=ZoneInfo('Europe/Istanbul')
 DIRECTIONS={'forward':'В ШОКмаркет','reverse':'В Камп'}
 PLATE=re.compile(r'(?<![A-Z0-9])(\d{2})[ ._-]*([A-Z]{1,3})[ ._-]*(\d{2,4})(?![A-Z0-9])',re.ASCII)
@@ -122,15 +123,20 @@ def totals(rows):
     result={k:sum(r[k] for r in rows) for k in ('bookings','confirmed','unconfirmed','capacity','free')}
     result.update(trips=len(rows),forward=sum(r['direction']=='forward' for r in rows),reverse=sum(r['direction']=='reverse' for r in rows))
     for state in ('early','late','on_time','planned','unknown'):result[state]=sum(r['status']==state for r in rows)
+    for name,state in [('performed','performed'),('not_performed','not_performed'),('in_progress','in_progress'),('execution_unknown','unknown'),('execution_ambiguous','ambiguous')]:
+        result[name]=sum(r.get('execution_status')==state for r in rows)
+    result['execution_pending']=sum(r.get('execution_status') in ('planned','checking') for r in rows)
     result['occupancy_percent']=round(100*result['bookings']/result['capacity'],1) if result['capacity'] else None
     late=[r['delta_minutes'] for r in rows if r['status']=='late'];early=[r['delta_minutes'] for r in rows if r['status']=='early']
     result['average_late_minutes']=round(sum(late)/len(late),1) if late else None
     result['max_early_minutes']=abs(min(early)) if early else None
     return result
-def build_report(path,start,end,direction,events,readiness,current=None):
+def build_report(path,start,end,direction,events,readiness,current=None,telemetry=None,fleet=None):
     current=current or datetime.now(TZ)
     if direction not in ('all','forward','reverse'):raise ValueError('Выберите направление из списка.')
     trips,_=load_trips(path,start,end,current,pad=True);attach_departures(trips,events,readiness,current)
+    if fleet is None:_,fleet=load_trips(path,start,end,current)
+    attach_execution(trips,events,readiness,telemetry,fleet,current)
     filtered=[r for r in trips if start<=r['date']<=end and (direction=='all' or r['direction']==direction)]
     for r in filtered:r.pop('_hints',None)
     days=[]
@@ -145,5 +151,8 @@ def build_report(path,start,end,direction,events,readiness,current=None):
         notes=['Брони считаются по каждому плечу; отменённые исключены. Посадки — отметки водителей.',
         'Свободно = вместимость − действующие брони. Для будущих рейсов посадка ещё может быть не отмечена.',
         'Неоднозначные и отсутствующие данные Wialon не считаются выездом вовремя.',
-        'Время выезда — первая точка вне зоны, подтверждённая следующей. При разрыве GPS более 3 минут время не определяется.',
+        'Время выезда — первая точка вне зоны, подтверждённая следующей. Разрыв более 3 минут в движении или более 10 минут на стоянке прерывает подтверждение.',
+        'Рейс состоялся: тот же автобус выехал из исходной зоны и подтверждён в зоне назначения. Окно выезда ±45 минут, дорога до 90 минут.',
+        'Не состоялся: окно закрыто, ни одного полного проезда не найдено и GPS-покрытие всех автобусов достаточно. При разрывах GPS выводится отдельный статус.',
+        'На стоянке допускается до 10 минут между GPS-точками в пределах 20 м; в движении — до 3 минут. Это допущение используется при оценке покрытия.',
         'Пустые исторические рейсы восстановлены по действующему расписанию; изменения старого расписания без броней не сохранены.'])
