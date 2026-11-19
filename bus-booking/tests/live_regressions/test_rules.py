@@ -141,11 +141,39 @@ with tempfile.TemporaryDirectory(prefix="bus-booking-rules-") as temp:
 
         # Mirrored case: outbound cancelled, return traveled, rebook allowed.
         outward, backward = [row[0] for row in leg_rows("000102")]
-        with sqlite3.connect(dbfile) as db:
-            booking_code = db.execute("SELECT code FROM bookings WHERE card='000102'").fetchone()[0]
-        response = post(tickets["000102"].replace('/bus/ticket/','/bus/api/ticket/') + "/cancel-for-card",
-                        {"confirm": True, "leg_id": outward, "card": "000102", "code": booking_code})
-        require(response.status_code == 200, "Outbound cancellation failed")
+        # A fresh browser gets permission from pass lookup for those bookings only.
+        owner = requests.Session()
+        lookup = owner.post(origin + "/bus/api/find-booking", json={"card": "000102"}, timeout=5)
+        lookup.raise_for_status()
+        cookie = lookup.headers["Set-Cookie"]
+        require(all(part in cookie for part in ("HttpOnly", "SameSite=strict", "Path=/bus/check/", "Max-Age=1800")),
+                "Lookup permission must be short-lived and scoped to the confirmation routes")
+        confirmation = lookup.json()["items"][0]["url"]
+        require(tickets["000102"].split("/")[-1] not in lookup.text, "Lookup exposed the private ticket")
+        unauthenticated = get(confirmation)
+        require('id="cancelOpen" hidden' in unauthenticated.text, "A QR link alone must be read-only")
+        page = owner.get(origin + confirmation, timeout=5)
+        require(page.status_code == 200 and 'id="cancelOpen" onclick=' in page.text
+                and 'id="cancelLink"' not in page.text and tickets["000102"].split("/")[-1] not in page.text,
+                "A fresh browser that looked up this pass must see the simple cancellation control")
+        cancel_url = confirmation + "/cancel"
+        cancel_leg = {"confirm": True, "leg_id": outward}
+        require(post(cancel_url, cancel_leg).status_code == 403, "A bare QR must not authorize cancellation")
+        another_pass = requests.Session()
+        another_pass.post(origin + "/bus/api/find-booking", json={"card": "000103"}, timeout=5).raise_for_status()
+        require(another_pass.post(origin + cancel_url, json=cancel_leg, timeout=5).status_code == 403,
+                "Lookup permission was accepted for a different booking")
+        require(owner.post(origin + cancel_url, json=cancel_leg, headers={"Origin":"https://different.example"},
+                           timeout=5).status_code == 403, "A cross-origin page could cancel")
+        require(owner.post(origin + cancel_url, json={"confirm": False}, timeout=5).status_code == 400,
+                "Server accepted a cancellation without confirmation")
+        response = owner.post(origin + cancel_url, json=cancel_leg, timeout=5)
+        require(response.status_code == 200 and response.json()["cancelled_legs"] == [outward],
+                "Outbound cancellation from lookup failed")
+        page = owner.get(origin + confirmation, timeout=5)
+        require('id="cancelOpen" onclick=' in page.text, "The remaining leg must still be cancellable")
+        owner.close()
+        another_pass.close()
         still_pending = post("/bus/api/book", {"card": "000102", "date": next_time.date().isoformat(),
                                                    "forward": next_forward, "direction": "forward"})
         require(still_pending.status_code == 409 and code(still_pending) == "ACTIVE_BOOKING_EXISTS",

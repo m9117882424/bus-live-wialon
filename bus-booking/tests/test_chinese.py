@@ -50,7 +50,7 @@ with tempfile.TemporaryDirectory(prefix='bus-zh-') as temporary:
     data = json.JSONDecoder().raw_decode(page.split('let data=', 1)[1])[0]
     assert data['fortune_zh'] == fortune_localized(booking['fortune'], 'zh')
     assert data['fortune'] == booking['fortune'] in FORTUNES
-    checked = bus.public_check(booking['code'], bus.qr_signature(booking['code']))
+    checked = bus.public_check(booking['code'], bus.qr_signature(booking['code']), bus.Request({'type':'http','headers':[]}))
     assert 'value="zh" selected>🇨🇳 简体中文' in checked
     assert data['fortune_zh'] in checked and 'Камп / Kamp → ŞOK MARKET' in checked
     # Switching an old Russian booking must retain its original wish identity.
