@@ -11,13 +11,13 @@ const py=[
   'def pieces(name):',
   '  n=next(x.value for x in a.body if isinstance(x,ast.Assign) and any(isinstance(t,ast.Name) and t.id==name for t in x.targets))',
   '  return [s.value for s in ast.walk(n) if isinstance(s,ast.Constant) and isinstance(s.value,str)]',
-  "print(json.dumps({k:pieces(k) for k in ['HTML','TICKET','CHECK_SCRIPT']}))"
+  "print(json.dumps({k:pieces(k) for k in ['HTML','TICKET','CHECK_SCRIPT','CANCEL_CONFIRM_SCRIPT']}))"
 ].join('\n');
 const p=JSON.parse(execFileSync('python3',['-c',py],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));
 const script=s=>s.split('<script>').pop().split('</script>')[0];
 const home=script(p.HTML.find(s=>s.includes("const B='/bus';")));
-const ticket=script(p.TICKET.find(s=>s.includes('let data=/*DATA*/')));
-const check=script(p.CHECK_SCRIPT.find(s=>s.includes('const checkCard=/*CARD*/')))
+const ticket=p.CANCEL_CONFIRM_SCRIPT[0]+script(p.TICKET.find(s=>s.includes('let data=/*DATA*/')));
+const check=p.CANCEL_CONFIRM_SCRIPT[0]+script(p.CHECK_SCRIPT.find(s=>s.includes('const checkCard=/*CARD*/')))
   .replace('/*CARD*/','"001234"').replace('/*CODE*/','"BUS-0123456789"')
   .replace('/*SIGNATURE*/','"abcdefghijklmnopqrstuv"').replace('/*CAN_CANCEL*/','true')
   .replace('/*BOOKING_LANG*/','"ky"').replace('/*LEG_COUNT*/','1').replace('/*FORTUNES*/',JSON.stringify({ru:'wish',tr:'wish-tr',kk:'wish-kk',tk:'wish-tk',zh:'愿您一路顺畅！'}));
@@ -38,7 +38,7 @@ function domContext(stored='ky'){
     'lookupResult','lookupCard','card','err','submit','trips','horizonHint','languageSelect','ok','direction','legs',
     'cardLabel','cardVal','codeLabel','codeVal','fortuneLabel','fortuneText','qrTools',
     'cancelTicketButton','cancelNote','expiry','copy','qr','autoReturn','autoReturnText',
-    'autoReturnSeconds','autoReturnUnit','returnNow','cancelError'])el(id);
+    'autoReturnSeconds','autoReturnUnit','returnNow','cancelError','cancelOpen','cancelMsg'])el(id);
   const trans=[{dataset:{i:'title'},textContent:''},{dataset:{i:'findButton'},textContent:''}];
   let preference=stored;
   const context={
@@ -102,7 +102,7 @@ async function run(){
   }
   const c=domContext('ky');
   const ids=['checkOk','checkDirection','checkCardLabel','checkCodeLabel','checkFortuneLabel',
-    'fileLangLabel','cancelOpen','cancelInstruction','cancelSubmit','cancelForm','cancelLink','cancelMsg'];
+    'fileLangLabel'];
   for(const id of ids){const e=c.el(id);c.context[id]=e}
   c.context.document.querySelectorAll=selector=>selector==='.check-seat-label'?[c.el('seatLabel')]:[];
   vm.runInContext(check,c.context);
@@ -147,7 +147,16 @@ async function run(){
   assert.ok(zh.el('err').innerHTML.includes('未来 72 小时'));
   c.context.fetch=async()=>({ok:false,json:async()=>({detail:{code:'LEG_NOT_CANCELLABLE'}})});
   vm.runInContext("setCheckLang('zh')",c.context);
-  await vm.runInContext("cancelExisting('abcdefghijklmnopqrstuv')",c.context);
+  vm.runInContext("checkCancelToken='synthetic-private-token'",c.context);
+  const dialog=c.el('bookingCancelDialog');
+  dialog.showModal=()=>{};
+  let close;
+  dialog.addEventListener=(event,handler)=>{assert.equal(event,'close');close=handler};
+  const pending=vm.runInContext('openCancel()',c.context);
+  assert.deepEqual(['Question','Yes','No'].map(id=>c.el('bookingCancel'+id).textContent),['您确定吗？','是','否']);
+  dialog.returnValue='yes';
+  close();
+  await pending;
   assert.equal(c.el('cancelMsg').textContent,window.BusPassengerL10n.errors.zh.LEG_NOT_CANCELLABLE);
   console.log('PASS: 7 browser locale switches on home/ticket, stop names unchanged, shared preference, check page controls');
 }

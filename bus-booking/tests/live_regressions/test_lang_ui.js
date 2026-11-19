@@ -19,7 +19,7 @@ const py=[
  'def pieces(name):',
  '  n=next(x.value for x in a.body if isinstance(x,ast.Assign) and any(isinstance(t,ast.Name) and t.id==name for t in x.targets))',
  '  return [s.value for s in ast.walk(n) if isinstance(s,ast.Constant) and isinstance(s.value,str)]',
- "print(json.dumps({k:pieces(k) for k in ['HTML','TICKET','CHECK_SCRIPT']}))"
+ "print(json.dumps({k:pieces(k) for k in ['HTML','TICKET','CHECK_SCRIPT','CANCEL_CONFIRM_SCRIPT']}))"
 ].join('\n');
 const pieces=JSON.parse(execFileSync('python3',['-c',py],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));
 const main=pieces.HTML.find(s=>s.includes("const B='/bus';"));
@@ -32,6 +32,7 @@ const checkJs=js(check)
  .replace('/*SIGNATURE*/','"abcdefghijklmnopqrstuv"').replace('/*CAN_CANCEL*/','true')
  .replace('/*BOOKING_LANG*/','"ky"').replace('/*LEG_COUNT*/','2').replace('/*FORTUNES*/','{}');
 assert.doesNotThrow(()=>new vm.Script(mainJs));
+assert.doesNotThrow(()=>new vm.Script(pieces.CANCEL_CONFIRM_SCRIPT[0]));
 assert.doesNotThrow(()=>new vm.Script(ticketJs.replace('/*DATA*/','{}')));
 assert.doesNotThrow(()=>new vm.Script(checkJs));
 
@@ -62,12 +63,14 @@ for(const section of ['home','ticket','check','errors']){
   }
  }
 }
-for(const [name,html] of [['home',main],['ticket',ticket]]) {
+const ticketMarkup=pieces.TICKET.find(s=>s.includes('id="languageSelect"'));
+for(const [name,html] of [['home',main],['ticket',ticketMarkup]]) {
  const pos=c=>html.indexOf('<option value="'+c+'">');
  const order=codes.map(pos);
  assert.ok(order.every(x=>x>=0),name+' flags present');
  assert.deepEqual([...order].sort((a,b)=>a-b),order,name+' flag order');
- assert.ok(html.includes('<script src="/bus/passenger-i18n.js?v=20261117-zh"></script>'),name+' loads translation file before inline code');
+ const scriptLoader=name==='home'?html:pieces.TICKET.find(s=>s.includes('src="/bus/passenger-i18n.js'));
+ assert.match(scriptLoader,/<script src="\/bus\/passenger-i18n\.js\?v=[^"]+"><\/script><script>/,name+' loads translation file before inline code');
 }
 // Expected stop-display expressions from the captured baseline; no production reads.
 const staged=fs.readFileSync(root+'/app.py','utf8');
