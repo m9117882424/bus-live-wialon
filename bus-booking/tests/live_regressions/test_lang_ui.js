@@ -29,7 +29,7 @@ const js=s=>s.split('<script>').pop().split('</script>')[0];
 const mainJs=js(main),ticketJs=js(ticket);
 const checkJs=js(check)
  .replace('/*CARD*/','"001234"').replace('/*CODE*/','"BUS-0123456789"')
- .replace('/*SIGNATURE*/','"abcdefghijklmnopqrstuv"').replace('/*CAN_CANCEL*/','true')
+ .replace('/*SIGNATURE*/','"abcdefghijklmnopqrstuv"').replace('/*CAN_CANCEL*/','true').replace('/*LOOKUP_CANCEL*/','false')
  .replace('/*BOOKING_LANG*/','"ky"').replace('/*LEG_COUNT*/','2').replace('/*FORTUNES*/','{}');
 assert.doesNotThrow(()=>new vm.Script(mainJs));
 assert.doesNotThrow(()=>new vm.Script(pieces.CANCEL_CONFIRM_SCRIPT[0]));

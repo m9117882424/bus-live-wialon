@@ -384,14 +384,30 @@ def visible_bookings(c,card,current):
  results={}
  for row in rows:results.setdefault(row['id'],{'code':row['code'],'legs':[]})['legs'].append(dict(row))
  return list(results.values())
+LOOKUP_COOKIE='bus_booking_lookup'
+LOOKUP_COOKIE_PATH=BASE+'/check/'
+LOOKUP_SESSION_SECONDS=1800
+LOOKUP_SCOPE=b'bus-booking-lookup:'
+
+def lookup_can_cancel(request:Request,code:str):
+ grant=request.cookies.get(LOOKUP_COOKIE)
+ if not grant:return False
+ try: payload=cipher.decrypt(grant.encode(),ttl=LOOKUP_SESSION_SECONDS)
+ except InvalidToken:return False
+ return payload.startswith(LOOKUP_SCOPE) and code.encode() in payload[len(LOOKUP_SCOPE):].split(b',')
+
 @app.post(BASE+'/api/find-booking')
-def find_booking(body:FindBooking):
+def find_booking(body:FindBooking,request:Request,response:Response):
  card=body.card.strip()
  if not card.isascii() or not card.isdigit() or not 4<=len(card)<=12:raise HTTPException(400,'Номер пропуска: от 4 до 12 цифр / Kart numarası 4–12 rakam olmalı')
  with db() as c:
-  current=now(); items=visible_bookings(c,card,current)
-  return {'items':[{'code':x['code'],'url':BASE+'/check/'+x['code']+'/'+qr_signature(x['code']),
-                    'legs':[{k:leg[k] for k in ('date','departure','origin','destination')} for leg in x['legs']]} for x in items]}
+  items=visible_bookings(c,card,now())
+ if items:
+  scope=LOOKUP_SCOPE+','.join(item['code'] for item in items).encode()
+  response.set_cookie(LOOKUP_COOKIE,cipher.encrypt(scope).decode(),path=LOOKUP_COOKIE_PATH,
+                      max_age=LOOKUP_SESSION_SECONDS,httponly=True,samesite='strict',secure=request.url.scheme=='https')
+ return {'items':[{'code':x['code'],'url':BASE+'/check/'+x['code']+'/'+qr_signature(x['code']),
+                   'legs':[{k:leg[k] for k in ('date','departure','origin','destination')} for leg in x['legs']]} for x in items]}
 @app.post(BASE+'/api/book')
 def book(b:Booking):
  card=b.card.strip(); day=validdate(b.date); rd=validdate(b.reverse_date or b.date)
@@ -500,22 +516,33 @@ def checked_booking(code,signature):
   if not b or b['token'] is None: raise HTTPException(404,'Срок подтверждения истёк / Onay süresi doldu')
   if b['cancelled_at']: raise HTTPException(410,'Бронь отменена / Rezervasyon iptal edildi')
   return dict(b),booking_legs(c,b)
+@app.post(BASE+'/check/{code}/{signature}/cancel')
+def cancel_from_lookup(code:str,signature:str,body:CancelRequest,request:Request):
+ if not body.confirm:raise HTTPException(400,'Необходимо подтверждение / Onay gerekli')
+ if not lookup_can_cancel(request,code):
+  raise HTTPException(403,'Откройте бронь по номеру пропуска ещё раз / Rezervasyonu kart numarasıyla tekrar açın.')
+ booking,_=checked_booking(code,signature)
+ return cancel_booking(token=booking['token'],expected_code=code,leg_id=body.leg_id)
+
 @app.get(BASE+'/check/{code}/{signature}',response_class=HTMLResponse)
-def public_check(code:str,signature:str):
+def public_check(code:str,signature:str,request:Request):
  try: b,legs=checked_booking(code,signature)
  except HTTPException as exc:
   heading='БРОНЬ ОТМЕНЕНА / REZERVASYON İPTAL EDİLDİ' if exc.status_code==410 else 'ПОДТВЕРЖДЕНИЕ НЕДОСТУПНО / ONAY KULLANILAMIYOR'
   return HTMLResponse('<!doctype html><html><head>'+STYLE+'</head><body><main><div class="alert">'+heading+'</div></main></body></html>',status_code=exc.status_code)
+ can_cancel=is_cancellable(b,legs)
+ lookup_cancel=can_cancel and lookup_can_cancel(request,code)
+ cancel_hidden='' if lookup_cancel else ' hidden'
  translations=stop_translations()
  def point(value):
   ru=html.escape(value); tr=html.escape(translations.get(value,value))
   return ru if ru==tr else ru+' / '+tr
- route_html=''.join('<div class="card"><b>'+point(x['origin'])+' → '+point(x['destination'])+'</b><p>'+html.escape(x['date'])+' · <strong>'+html.escape(x['departure'][:5])+'</strong></p><span class="muted">'+html.escape(x['route_name'])+'<br><span class="check-seat-label">Запись / Kayıt</span>: '+str(x['sequence'])+' / '+str(x['capacity'])+'</span>'+('<p class="check-cancelled-leg">Отменён / İptal edildi</p>' if x['cancelled'] else '')+('<p class="check-boarded-leg">Посадка отмечена / Biniş kaydedildi</p>' if x.get('boarded_at') else '')+('<button class="secondary check-cancel-one" hidden onclick="openCancel('+str(x['id'])+')">Отменить рейс</button>' if not x['cancelled'] and not x.get('boarded_at') and dt(x['date'],x['departure'])>now() else '')+('<p>'+html.escape(x['comment'])+'</p>' if x['comment'] else '')+'</div>' for x in legs)
+ route_html=''.join('<div class="card"><b>'+point(x['origin'])+' → '+point(x['destination'])+'</b><p>'+html.escape(x['date'])+' · <strong>'+html.escape(x['departure'][:5])+'</strong></p><span class="muted">'+html.escape(x['route_name'])+'<br><span class="check-seat-label">Запись / Kayıt</span>: '+str(x['sequence'])+' / '+str(x['capacity'])+'</span>'+('<p class="check-cancelled-leg">Отменён / İptal edildi</p>' if x['cancelled'] else '')+('<p class="check-boarded-leg">Посадка отмечена / Biniş kaydedildi</p>' if x.get('boarded_at') else '')+('<button class="secondary check-cancel-one"'+cancel_hidden+' onclick="openCancel('+str(x['id'])+')">Отменить рейс</button>' if not x['cancelled'] and not x.get('boarded_at') and dt(x['date'],x['departure'])>now() else '')+('<p>'+html.escape(x['comment'])+'</p>' if x['comment'] else '')+'</div>' for x in legs)
  direction='⇄ В ОБЕ СТОРОНЫ / GİDİŞ-DÖNÜŞ' if len(legs)>1 else '→ В ОДНУ СТОРОНУ / TEK YÖN'
  path=BASE+'/check/'+code+'/'+signature
  lang=b['lang'] if b['lang'] in ('ru','tr','kk','tk','zh') else 'ru'
- page='<!doctype html><html><head>'+STYLE+'<title>Подтверждение / Onay</title></head><body><header><span class="brand"><img src="/bus/logo.png" alt="TSM ENERJİ"><span class="brand-label">🚌 BUS</span></span><select id="languageSelect" class="headbutton language-select" aria-label="Language / Язык" onchange="setCheckLang(this.value)"><option value="tr">🇹🇷 Türkçe</option><option value="ru">🇷🇺 Русский</option><option value="ky">🇰🇬 Кыргызча</option><option value="uz">🇺🇿 O‘zbekcha</option><option value="tg">🇹🇯 Тоҷикӣ</option><option value="kk">🇰🇿 Қазақша</option><option value="tk">🇹🇲 Türkmençe</option><option value="en">🇬🇧 English</option><option value="zh">🇨🇳 简体中文</option></select></header><main><div class="box"><div class="success" id="checkOk">✓ ПОСАДКА РАЗРЕШЕНА<br>BİNİŞ ONAYLANDI</div><div class="direction" id="checkDirection">'+direction+'</div>'+route_html+'<p><b id="checkCardLabel">Пропуск / Kart:</b> '+html.escape(b['card'])+'</p><p><b id="checkCodeLabel">Бронь / Rezervasyon:</b> '+html.escape(b['code'])+'</p><div class="fortune"><b id="checkFortuneLabel">Пожелание / Dilek</b><br><span id="checkFortuneText">'+html.escape(b['fortune'])+'<br>'+html.escape(fortune_tr(b['fortune']))+'</span></div><img class="qr" src="'+path+'/qr" alt="QR"><label id="fileLangLabel" for="fileLang">Язык файла / Dosya dili</label><select id="fileLang"><option value="ru"'+(' selected' if lang=='ru' else '')+'>Русский</option><option value="tr"'+(' selected' if lang=='tr' else '')+'>Türkçe</option><option value="kk"'+(' selected' if lang=='kk' else '')+'>Қазақша</option><option value="tk"'+(' selected' if lang=='tk' else '')+'>Türkmençe</option><option value="zh"'+(' selected' if lang=='zh' else '')+'>🇨🇳 简体中文</option></select><div class="row" style="margin:10px 0"><button onclick="downloadCheck(\'pdf\')">↓ PDF</button><button onclick="downloadCheck(\'jpg\')">↓ JPG</button></div><button class="secondary" id="cancelOpen" hidden onclick="openCancel()">Отменить бронь / Rezervasyonu iptal et</button><div id="cancelMsg" role="status"></div></div></main>'+CANCEL_DIALOG
- return page+'<script src="/bus/passenger-i18n.js?v=20261119-cancel"></script>'+CHECK_SCRIPT.replace('/*CARD*/',json.dumps(b['card']).replace('<','\\u003c')).replace('/*CODE*/',json.dumps(b['code'])).replace('/*SIGNATURE*/',json.dumps(signature)).replace('/*CAN_CANCEL*/',json.dumps(is_cancellable(b,legs))).replace('/*BOOKING_LANG*/',json.dumps(b['lang'])).replace('/*LEG_COUNT*/',str(len(legs))).replace('/*FORTUNES*/',json.dumps({'ru':b['fortune'],'tr':fortune_tr(b['fortune']),'kk':fortune_localized(b['fortune'],'kk'),'tk':fortune_localized(b['fortune'],'tk'),'zh':fortune_localized(b['fortune'],'zh')},ensure_ascii=False).replace('<','\\u003c'))+'</body></html>'
+ page='<!doctype html><html><head>'+STYLE+'<title>Подтверждение / Onay</title></head><body><header><span class="brand"><img src="/bus/logo.png" alt="TSM ENERJİ"><span class="brand-label">🚌 BUS</span></span><select id="languageSelect" class="headbutton language-select" aria-label="Language / Язык" onchange="setCheckLang(this.value)"><option value="tr">🇹🇷 Türkçe</option><option value="ru">🇷🇺 Русский</option><option value="ky">🇰🇬 Кыргызча</option><option value="uz">🇺🇿 O‘zbekcha</option><option value="tg">🇹🇯 Тоҷикӣ</option><option value="kk">🇰🇿 Қазақша</option><option value="tk">🇹🇲 Türkmençe</option><option value="en">🇬🇧 English</option><option value="zh">🇨🇳 简体中文</option></select></header><main><div class="box"><div class="success" id="checkOk">✓ ПОСАДКА РАЗРЕШЕНА<br>BİNİŞ ONAYLANDI</div><div class="direction" id="checkDirection">'+direction+'</div>'+route_html+'<p><b id="checkCardLabel">Пропуск / Kart:</b> '+html.escape(b['card'])+'</p><p><b id="checkCodeLabel">Бронь / Rezervasyon:</b> '+html.escape(b['code'])+'</p><div class="fortune"><b id="checkFortuneLabel">Пожелание / Dilek</b><br><span id="checkFortuneText">'+html.escape(b['fortune'])+'<br>'+html.escape(fortune_tr(b['fortune']))+'</span></div><img class="qr" src="'+path+'/qr" alt="QR"><label id="fileLangLabel" for="fileLang">Язык файла / Dosya dili</label><select id="fileLang"><option value="ru"'+(' selected' if lang=='ru' else '')+'>Русский</option><option value="tr"'+(' selected' if lang=='tr' else '')+'>Türkçe</option><option value="kk"'+(' selected' if lang=='kk' else '')+'>Қазақша</option><option value="tk"'+(' selected' if lang=='tk' else '')+'>Türkmençe</option><option value="zh"'+(' selected' if lang=='zh' else '')+'>🇨🇳 简体中文</option></select><div class="row" style="margin:10px 0"><button onclick="downloadCheck(\'pdf\')">↓ PDF</button><button onclick="downloadCheck(\'jpg\')">↓ JPG</button></div><button class="secondary" id="cancelOpen"'+cancel_hidden+' onclick="openCancel()">Отменить бронь / Rezervasyonu iptal et</button><div id="cancelMsg" role="status"></div></div></main>'+CANCEL_DIALOG
+ return page+'<script src="/bus/passenger-i18n.js?v=20261119-cancel"></script>'+CHECK_SCRIPT.replace('/*CARD*/',json.dumps(b['card']).replace('<','\\u003c')).replace('/*CODE*/',json.dumps(b['code'])).replace('/*SIGNATURE*/',json.dumps(signature)).replace('/*CAN_CANCEL*/',json.dumps(can_cancel)).replace('/*LOOKUP_CANCEL*/',json.dumps(lookup_cancel)).replace('/*BOOKING_LANG*/',json.dumps(b['lang'])).replace('/*LEG_COUNT*/',str(len(legs))).replace('/*FORTUNES*/',json.dumps({'ru':b['fortune'],'tr':fortune_tr(b['fortune']),'kk':fortune_localized(b['fortune'],'kk'),'tk':fortune_localized(b['fortune'],'tk'),'zh':fortune_localized(b['fortune'],'zh')},ensure_ascii=False).replace('<','\\u003c'))+'</body></html>'
 def qr_image(b,legs,url,max_pixels=None):
  q=qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_L,box_size=5,border=4); q.add_data(url); q.make(fit=True)
  if max_pixels: q.box_size=max(1,max_pixels//(q.modules_count+q.border*2))
@@ -988,7 +1015,7 @@ function confirmCancellation(language){
 }
 '''
 CHECK_SCRIPT='''<script>'''+CANCEL_CONFIRM_SCRIPT+'''
-const checkCard=/*CARD*/,checkCode=/*CODE*/,checkSignature=/*SIGNATURE*/,checkCanCancel=/*CAN_CANCEL*/,checkBookingLang=/*BOOKING_LANG*/,checkLegCount=/*LEG_COUNT*/,checkFortunes=/*FORTUNES*/;
+const checkCard=/*CARD*/,checkCode=/*CODE*/,checkSignature=/*SIGNATURE*/,checkCanCancel=/*CAN_CANCEL*/,checkLookupCancel=/*LOOKUP_CANCEL*/,checkBookingLang=/*BOOKING_LANG*/,checkLegCount=/*LEG_COUNT*/,checkFortunes=/*FORTUNES*/;
 let checkLang;try{checkLang=localStorage.getItem('bus-lang')||checkBookingLang}catch(e){checkLang=checkBookingLang}
 if(!window.BusPassengerL10n?.check?.[checkLang])checkLang='ru';function checkText(){let m=window.BusPassengerL10n?.check||{};return m[checkLang]||m.ru}
 function translateCheck(){let x=checkText();if(!x)return;document.documentElement.lang=checkLang;document.getElementById('languageSelect').value=checkLang;
@@ -1000,7 +1027,7 @@ function downloadCheck(fmt){location.href='/bus/check/'+encodeURIComponent(check
 const checkCancelButtons=[cancelOpen,...document.querySelectorAll('.check-cancel-one')];
 let checkCancelToken='', checkCancelBusy=false;
 async function enableCheckCancel(){
- if(!checkCanCancel)return;
+ if(!checkCanCancel||checkLookupCancel)return;
  try{
   const tickets=JSON.parse(localStorage.getItem('bus-tickets:'+checkCard)||'{}');
   const token=tickets[checkCode]?.token||localStorage.getItem('bus-ticket:'+checkCard);
@@ -1014,13 +1041,16 @@ async function enableCheckCancel(){
  }catch(e){}
 }
 async function openCancel(legId=null){
- if(!checkCancelToken||checkCancelBusy)return;
+ if((!checkLookupCancel&&!checkCancelToken)||checkCancelBusy)return;
  checkCancelBusy=true;
  try{
   if(!await confirmCancellation(checkLang))return;
   cancelMsg.textContent='';
   checkCancelButtons.forEach(button=>button.disabled=true);
-  const response=await fetch('/bus/api/ticket/'+encodeURIComponent(checkCancelToken)+'/cancel-for-card',{
+  const target=checkLookupCancel
+   ? '/bus/check/'+encodeURIComponent(checkCode)+'/'+encodeURIComponent(checkSignature)+'/cancel'
+   : '/bus/api/ticket/'+encodeURIComponent(checkCancelToken)+'/cancel-for-card';
+  const response=await fetch(target,{
    method:'POST',headers:{'Content-Type':'application/json'},
    body:JSON.stringify({confirm:true,card:checkCard,code:checkCode,leg_id:legId})
   });

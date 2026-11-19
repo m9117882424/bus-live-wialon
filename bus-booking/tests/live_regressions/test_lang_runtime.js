@@ -19,7 +19,7 @@ const home=script(p.HTML.find(s=>s.includes("const B='/bus';")));
 const ticket=p.CANCEL_CONFIRM_SCRIPT[0]+script(p.TICKET.find(s=>s.includes('let data=/*DATA*/')));
 const check=p.CANCEL_CONFIRM_SCRIPT[0]+script(p.CHECK_SCRIPT.find(s=>s.includes('const checkCard=/*CARD*/')))
   .replace('/*CARD*/','"001234"').replace('/*CODE*/','"BUS-0123456789"')
-  .replace('/*SIGNATURE*/','"abcdefghijklmnopqrstuv"').replace('/*CAN_CANCEL*/','true')
+  .replace('/*SIGNATURE*/','"abcdefghijklmnopqrstuv"').replace('/*CAN_CANCEL*/','true').replace('/*LOOKUP_CANCEL*/','false')
   .replace('/*BOOKING_LANG*/','"ky"').replace('/*LEG_COUNT*/','1').replace('/*FORTUNES*/',JSON.stringify({ru:'wish',tr:'wish-tr',kk:'wish-kk',tk:'wish-tk',zh:'愿您一路顺畅！'}));
 const window={};
 vm.runInNewContext(fs.readFileSync(root+'/static/passenger-i18n.js','utf8'),{window});
