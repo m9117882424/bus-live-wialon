@@ -405,6 +405,17 @@
       "boardedLeg": "已登记乘车"
     }
   },
+  "cancelDialog": {
+    "tr": ["Emin misiniz?", "Evet", "Hayır"],
+    "ru": ["Вы уверены?", "Да", "Нет"],
+    "ky": ["Ишенесизби?", "Ооба", "Жок"],
+    "uz": ["Ishonchingiz komilmi?", "Ha", "Yo‘q"],
+    "tg": ["Мутмаин ҳастед?", "Ҳа", "Не"],
+    "en": ["Are you sure?", "Yes", "No"],
+    "kk": ["Сенімдісіз бе?", "Иә", "Жоқ"],
+    "tk": ["Ynanýarsyňyzmy?", "Hawa", "Ýok"],
+    "zh": ["您确定吗？", "是", "否"]
+  },
   "check": {
     "tr": {
       "ok": "✓ BİNİŞ ONAYLANDI",
@@ -416,12 +427,7 @@
       "fortune": "Dileğiniz",
       "fileLang": "Dosya dili",
       "cancel": "Rezervasyonu iptal et",
-      "cancelHelp": "İptal için kişisel onay bağlantınızı yapıştırın.",
-      "cancelSubmit": "İptali onayla",
-      "cancelConfirmPrompt": "Henüz hareket etmemiş tüm seferler iptal edilsin mi?",
-      "tokenHint": "Kişisel onay bağlantısını girin.",
-      "cancelOne": "Bu seferi iptal et",
-      "cancelOneConfirm": "Yalnızca seçilen sefer iptal edilsin mi?"
+      "cancelOne": "Bu seferi iptal et"
     },
     "ru": {
       "ok": "✓ ПОСАДКА РАЗРЕШЕНА",
@@ -433,12 +439,7 @@
       "fortune": "Ваше пожелание",
       "fileLang": "Язык файла",
       "cancel": "Отменить бронь",
-      "cancelHelp": "Для отмены вставьте личную ссылку на подтверждение.",
-      "cancelSubmit": "Подтвердить отмену",
-      "cancelConfirmPrompt": "Отменить все рейсы, которые ещё не отправились?",
-      "tokenHint": "Укажите личную ссылку на подтверждение.",
-      "cancelOne": "Отменить этот рейс",
-      "cancelOneConfirm": "Отменить только выбранный рейс?"
+      "cancelOne": "Отменить этот рейс"
     },
     "ky": {
       "ok": "✓ ОТУРУУГА УРУКСАТ",
@@ -450,12 +451,7 @@
       "fortune": "Сиздин каалооңуз",
       "fileLang": "Файлдын тили",
       "cancel": "Бронду жокко чыгаруу",
-      "cancelHelp": "Жокко чыгаруу үчүн жеке ырастоо шилтемесин коюңуз.",
-      "cancelSubmit": "Жокко чыгарууну ырастоо",
-      "cancelConfirmPrompt": "Жөнөй элек бардык каттамдарды жокко чыгарасызбы?",
-      "tokenHint": "Жеке ырастоо шилтемесин киргизиңиз.",
-      "cancelOne": "Бул каттамды жокко чыгаруу",
-      "cancelOneConfirm": "Ушул каттамды гана жокко чыгарасызбы?"
+      "cancelOne": "Бул каттамды жокко чыгаруу"
     },
     "uz": {
       "ok": "✓ CHIQISHGA RUXSAT",
@@ -467,12 +463,7 @@
       "fortune": "Sizning tilagingiz",
       "fileLang": "Fayl tili",
       "cancel": "Bandlovni bekor qilish",
-      "cancelHelp": "Bekor qilish uchun shaxsiy tasdiqlash havolangizni kiriting.",
-      "cancelSubmit": "Bekor qilishni tasdiqlash",
-      "cancelConfirmPrompt": "Hali jo‘nab ketmagan barcha reyslar bekor qilinsinmi?",
-      "tokenHint": "Shaxsiy tasdiqlash havolasini kiriting.",
-      "cancelOne": "Bu reysni bekor qilish",
-      "cancelOneConfirm": "Faqat shu reys bekor qilinsinmi?"
+      "cancelOne": "Bu reysni bekor qilish"
     },
     "tg": {
       "ok": "✓ САВОРШАВӢ ИҶОЗАТ АСТ",
@@ -484,12 +475,7 @@
       "fortune": "Орзуи шумо",
       "fileLang": "Забони файл",
       "cancel": "Бекор кардани брон",
-      "cancelHelp": "Барои бекоркунӣ пайванди шахсии тасдиқро ворид кунед.",
-      "cancelSubmit": "Тасдиқи бекоркунӣ",
-      "cancelConfirmPrompt": "Ҳамаи рейсҳои ҳанӯз ҳаракатнакардаро бекор мекунед?",
-      "tokenHint": "Пайванди шахсии тасдиқро ворид кунед.",
-      "cancelOne": "Бекор кардани ин рейс",
-      "cancelOneConfirm": "Танҳо ҳамин рейсро бекор мекунед?"
+      "cancelOne": "Бекор кардани ин рейс"
     },
     "en": {
       "ok": "✓ BOARDING ALLOWED",
@@ -501,12 +487,7 @@
       "fortune": "Your message",
       "fileLang": "File language",
       "cancel": "Cancel booking",
-      "cancelHelp": "To cancel, paste your personal confirmation link.",
-      "cancelSubmit": "Confirm cancellation",
-      "cancelConfirmPrompt": "Cancel all trips that have not departed yet?",
-      "tokenHint": "Enter your personal confirmation link.",
-      "cancelOne": "Cancel this trip",
-      "cancelOneConfirm": "Cancel only this trip?"
+      "cancelOne": "Cancel this trip"
     },
     "kk": {
       "ok": "✓ ОТЫРУҒА РҰҚСАТ",
@@ -518,12 +499,7 @@
       "fortune": "Сізге тілек",
       "fileLang": "Файл тілі",
       "cancel": "Броннан бас тарту",
-      "cancelHelp": "Бас тарту үшін жеке растау сілтемеңізді енгізіңіз.",
-      "cancelSubmit": "Бас тартуды растау",
-      "cancelConfirmPrompt": "Әлі жөнелмеген барлық рейстерден бас тартасыз ба?",
-      "tokenHint": "Жеке растау сілтемеңізді енгізіңіз.",
-      "cancelOne": "Осы рейстен бас тарту",
-      "cancelOneConfirm": "Тек осы рейстен бас тартасыз ба?"
+      "cancelOne": "Осы рейстен бас тарту"
     },
     "tk": {
       "ok": "✓ MÜNMÄGE RUGSAT",
@@ -535,12 +511,7 @@
       "fortune": "Size arzuw",
       "fileLang": "Faýlyň dili",
       "cancel": "Brony ýatyr",
-      "cancelHelp": "Ýatyrmak üçin şahsy tassyklama salgyňyzy giriziň.",
-      "cancelSubmit": "Ýatyrmagy tassykla",
-      "cancelConfirmPrompt": "Entäk ugramadyk ähli gatnawlary ýatyrmalymy?",
-      "tokenHint": "Şahsy tassyklama salgyňyzy giriziň.",
-      "cancelOne": "Şu gatnawy ýatyr",
-      "cancelOneConfirm": "Diňe şu gatnawy ýatyrmalymy?"
+      "cancelOne": "Şu gatnawy ýatyr"
     },
     "zh": {
       "ok": "✓ 可以乘车",
@@ -552,12 +523,7 @@
       "fortune": "送给您的祝福",
       "fileLang": "文件语言",
       "cancel": "取消预订",
-      "cancelHelp": "如需取消，请粘贴您的个人确认链接。",
-      "cancelSubmit": "确认取消",
-      "cancelConfirmPrompt": "确定取消所有尚未发车的班次吗？",
-      "tokenHint": "请输入您的个人确认链接。",
-      "cancelOne": "取消此班次",
-      "cancelOneConfirm": "确定仅取消此班次吗？"
+      "cancelOne": "取消此班次"
     }
   },
   "errors": {
