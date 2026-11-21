@@ -22,3 +22,6 @@ discovery_result*.json
 .DS_Store
 Thumbs.db
 route_state.json
+
+# Local copies restored from skills-lock.json
+/.agents/skills/
