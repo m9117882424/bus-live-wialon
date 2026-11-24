@@ -10,7 +10,7 @@ TZ=ZoneInfo("Europe/Istanbul")
 MAX_BYTES=6*1024*1024
 MAX_ROWS=150000
 BEFORE_MS=30*60*1000
-AFTER_MS=5*60*1000
+AFTER_MS=30*60*1000
 PLATE=re.compile(r"(?<![A-Z0-9])(\d{2})[ ._-]*([A-Z]{1,3})[ ._-]*(\d{2,4})(?![A-Z0-9])",re.ASCII)
 HEADERS={
  "card":{"kartno","kartnumarasi","cardno","cardnumber","номеркарты","карта","номерпропуска","пропуск"},
@@ -118,7 +118,7 @@ def import_status(connection):
  return dict(records=connection.execute("SELECT COUNT(*) FROM scud_events").fetchone()[0],
              days=[dict(row) for row in connection.execute("SELECT day,imported_at FROM scud_days ORDER BY day DESC LIMIT 365")],
              imports=[dict(row) for row in connection.execute("SELECT * FROM scud_imports ORDER BY id DESC LIMIT 20")],
-             window_before_minutes=30,window_after_minutes=5)
+             window_before_minutes=BEFORE_MS//60000,window_after_minutes=AFTER_MS//60000)
 
 def attach_scud(trips,connection,current):
  """Assign an event once before direction/date filtering; expose aggregates only."""

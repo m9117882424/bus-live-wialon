@@ -4,7 +4,7 @@ from datetime import datetime,timedelta
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from openpyxl import Workbook,load_workbook
-from scud import parse_workbook,init_schema,save_import,attach_scud,ScudError,TZ,MAX_BYTES
+from scud import parse_workbook,init_schema,save_import,attach_scud,ScudError,TZ,MAX_BYTES,import_status
 from public_analytics.data import build_report
 from public_analytics.app import excel
 from test_public_analytics import fixture
@@ -64,10 +64,30 @@ class MatchingTests(unittest.TestCase):
  def setUp(self):self.c=db()
  def attach(self,rows,current=NOW):attach_scud(rows,self.c,current);return rows
  def test_exact_window_boundaries_card_dedup_and_separate_free_seats(self):
-  marks=[("33KY555",card,(P+timedelta(seconds=delta)).replace(tzinfo=None)) for card,delta in [("1000",-1800),("2000",300),("2000",0),("3000",-1801),("4000",301)]]
+  marks=[("33KY555",card,(P+timedelta(seconds=delta)).replace(tzinfo=None)) for card,delta in [("1000",-1800),("2000",1800),("2000",0),("3000",-1801),("4000",1801)]]
   insert(self.c,marks);row=trip();self.attach([row])
   self.assertEqual((row["scud_count"],row["scud_free"],row["free"]),(2,3,4))
   self.assertEqual(row["scud_status"],"ready")
+ def test_window_status_matches_thirty_minutes(self):
+  result=import_status(self.c)
+  self.assertEqual((result["window_before_minutes"],result["window_after_minutes"]),(30,30))
+ def test_extended_after_window_is_partial_until_thirty_minutes(self):
+  insert(self.c,[("33KY555","1000",(P+timedelta(minutes=10)).replace(tzinfo=None))])
+  row=trip();self.attach([row],P+timedelta(minutes=6))
+  self.assertEqual((row["scud_count"],row["scud_status"]),(0,"partial"))
+  self.attach([row],P+timedelta(minutes=10))
+  self.assertEqual((row["scud_count"],row["scud_status"]),(1,"partial"))
+  self.assertIsNone(row["scud_free"])
+  self.attach([row],P+timedelta(minutes=30))
+  self.assertEqual((row["scud_count"],row["scud_status"]),(1,"ready"))
+ def test_extended_after_window_crosses_midnight(self):
+  planned=P.replace(hour=23,minute=50);current=planned+timedelta(hours=1)
+  insert(self.c,[("33KY555","1000",planned.replace(tzinfo=None))])
+  row=trip(planned=planned);self.attach([row],current)
+  self.assertEqual(row["scud_status"],"partial")
+  insert(self.c,[("33KY555","2000",(planned+timedelta(minutes=30)).replace(tzinfo=None))])
+  self.attach([row],current)
+  self.assertEqual((row["scud_count"],row["scud_status"]),(2,"ready"))
  def test_bus_and_direction_attribution(self):
   insert(self.c,[("33KY555","1000",P.replace(tzinfo=None)),("70ACB112","2000",P.replace(tzinfo=None))])
   rows=[trip("forward",bus="33KY555"),trip("reverse",bus="70ACB112",direction="reverse")]
