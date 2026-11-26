@@ -1,4 +1,5 @@
 import os, sqlite3, secrets, json, io, base64, html, calendar, threading, textwrap, hmac, hashlib, re
+import subprocess
 import time as clock
 from collections import OrderedDict
 from datetime import datetime, date, timedelta, time
@@ -19,6 +20,7 @@ from reportlab.lib.utils import ImageReader
 from fortunes import FORTUNES, fortune_tr, choose_fortune
 from fortune_localizations import fortune_localized
 from occupancy import occupancy_report
+from pass_ocr import MAX_FRAME_BYTES, recognize_pass
 from scud import init_schema as init_scud,parse_workbook as parse_scud,save_import as save_scud,import_status as scud_status,ScudError,MAX_BYTES as SCUD_MAX_BYTES
 from starlette.concurrency import run_in_threadpool
 
@@ -973,6 +975,24 @@ def scanner_verify(v:Verify,request:Request):
   c.execute('INSERT INTO boardings(leg_id,booking_id,card,boarded_at,source,driver_id,driver_login) SELECT id,booking_id,card,?,?,?,? FROM legs WHERE id=?',(current.isoformat(),'manual' if v.source=='manual' else 'qr',driver['id'],driver['login'],selected['id']))
   c.commit()
  return result
+def require_ocr_driver(request:Request):
+ with db() as c:require_driver(c,request)
+
+@app.post(BASE+'/api/scanner/read-pass')
+async def scanner_read_pass(request:Request):
+ await run_in_threadpool(require_ocr_driver,request)
+ if request.headers.get('content-type')!='image/png':raise HTTPException(415)
+ frame=bytearray()
+ async for chunk in request.stream():
+  if len(frame)+len(chunk)>MAX_FRAME_BYTES:raise HTTPException(413)
+  frame.extend(chunk)
+ try:card=await run_in_threadpool(recognize_pass,bytes(frame))
+ except (ValueError,OSError) as exc:
+  if isinstance(exc,(FileNotFoundError,BlockingIOError)):raise HTTPException(503) from exc
+  raise HTTPException(400) from exc
+ except subprocess.SubprocessError as exc:raise HTTPException(503) from exc
+ return {'card':card}
+
 @app.get(BASE+'/scanner',include_in_schema=False)
 def scanner_slash():return RedirectResponse(BASE+'/scanner/')
 @app.get(BASE+'/scanner/',response_class=HTMLResponse)
