@@ -39,9 +39,21 @@ vm.createContext(context);vm.runInContext(script,context);
  nodes.scanFrame.getBoundingClientRect=()=>({width:240,height:60});
  nodes.canvas.getContext=()=>({drawImage:(_video,...args)=>assert.deepStrictEqual(args,[80,180,480,120,0,0,480,120])});
  nodes.canvas.toBlob=fn=>fn('cropped-png');
- let attempts=0;
+ let attempts=0,boardings=0;
+ const location={origin:'https://bus.example'};
+ Object.assign(context,{URL,location});
  context.fetch=async(url,options)=>{
+   if(url.endsWith('/find-booking')){
+     assert.strictEqual(JSON.parse(options.body).card,'012345');
+     return {ok:true,json:async()=>({items:[{url:'/bus/check/BUS-0123456789/abcdefghijklmnopqrstuv'}]})};
+   }
+   if(url.endsWith('/verify')){
+     const check=JSON.parse(options.body);
+     if(check.record){assert.strictEqual(check.leg_id,42);boardings++}
+     return {ok:true,json:async()=>({allowed:true,card:'012345',remaining_ms:5000,legs:[{id:42,departure:'14:30'}]})};
+   }
    assert(url.endsWith('/read-pass'));
+
    assert.strictEqual(options.body,'cropped-png');
    const card=++attempts===1?null:'012345';
    return {ok:true,status:200,json:async()=>({card})};
@@ -52,8 +64,8 @@ vm.createContext(context);vm.runInContext(script,context);
  assert(retry);await retry.fn();
  assert.strictEqual(attempts,2);
  assert.strictEqual(nodes.manualInput.value,'012345');
- assert(nodes.camera.hidden&&nodes.result.hidden);
- assert(nodes.hint.textContent.includes('karşılaştırın'));
+ assert(nodes.camera.hidden&&nodes.result.className.includes('good'));
+ assert.strictEqual(boardings,1);
  let resolveLogin;const authCalls=[];
  context.fetch=(url)=>{authCalls.push(url);if(url.endsWith('/login'))return new Promise(r=>{resolveLogin=r});return Promise.resolve({ok:true,status:200,json:async()=>({ok:true})})};
  nodes.loginInput.value='driver02';nodes.loginPassword.value='synthetic-password';const login=context.signIn();
