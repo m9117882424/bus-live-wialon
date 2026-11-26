@@ -19,7 +19,7 @@ def recognize_pass(frame: bytes) -> str | None:
     # Keep the red print and discard dark text such as the ID number.
     mask = Image.new('L', pixels.size)
     mask.putdata([
-        0 if red - max(green, blue) >= 28 and red >= max(green, blue) * 1.2 else 255
+        0 if red - max(green, blue) >= 22 and red >= max(green, blue) * 1.15 else 255
         for red, green, blue in pixels.getdata()
     ])
     bounds = ImageOps.invert(mask).getbbox()
