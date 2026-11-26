@@ -140,6 +140,7 @@ async function readPass(){
  }
  const serial=checkSerial,abort=new AbortController(),timeout=setTimeout(()=>abort.abort(),6000);
  passRequest=abort;
+ let retryDelay=400;
  const isCurrent=()=>serial===checkSerial&&scanning&&scanMode==='pass'&&passRequest===abort;
  try{
   const view=video.getBoundingClientRect(),frame=el('scanFrame').getBoundingClientRect();
@@ -154,26 +155,27 @@ async function readPass(){
   const reply=await authRequest('read-pass',{method:'POST',body:png,headers:{'Content-Type':'image/png'},signal:abort.signal});
   if(!isCurrent())return;
   if(reply.status===401){expireSession();return}
-  if(!reply.ok)throw Error('ocr');
+  if(!reply.ok){retryDelay=1000;return}
   const {card}=await reply.json();
   if(!isCurrent()||!/^[0-9]{6}$/.test(card||''))return;
   el('manualInput').value=card;
   await verifyCard();
  }catch(e){
+  retryDelay=1000;
   // Camera and network failures are retried while this scan is open.
  }finally{
   clearTimeout(timeout);
   if(isCurrent()){
    passRequest=null;
    if(++passMisses===5)render();
-   scanTimer=setTimeout(readPass,1000);
+   scanTimer=setTimeout(readPass,retryDelay);
   }
  }
 }
 async function startCamera(mode='qr'){
  if(!driverReady())return;scanMode=mode;passMisses=0;const serial=++checkSerial;setScanBusy(true);clearResult();
  try{if(!stream){const opened=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},...(mode==='pass'?{width:{ideal:1280},height:{ideal:720}}:{})}});if(serial!==checkSerial||document.hidden){opened.getTracks().forEach(track=>track.stop());return}stream=opened;video.srcObject=stream;el('camera').hidden=false;await video.play();if(serial!==checkSerial)return;if(document.hidden||!stream){stopCamera();return}try{detector='BarcodeDetector'in window?new BarcodeDetector({formats:['qr_code']}):null}catch(e){detector=null}}
- if(serial!==checkSerial)return;el('camera').hidden=false;scanning=true;render();if(mode==='qr')readFrame();else scanTimer=setTimeout(readPass,350);
+ if(serial!==checkSerial)return;el('camera').hidden=false;scanning=true;render();if(mode==='qr')readFrame();else scanTimer=setTimeout(readPass,150);
  }catch(e){if(serial===checkSerial){last={allowed:false,reason:'camera'};stopCamera()}}finally{if(serial===checkSerial)setScanBusy(false)}
 }
 function stopCamera(){scanning=false;passRequest?.abort();passRequest=null;clearTimeout(scanTimer);if(stream){stream.getTracks().forEach(track=>track.stop());stream=null}video.srcObject=null;el('camera').hidden=true;render()}

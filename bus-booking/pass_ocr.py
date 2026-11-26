@@ -1,4 +1,5 @@
 import io
+import os
 import re
 import subprocess
 from threading import BoundedSemaphore
@@ -38,6 +39,7 @@ def recognize_pass(frame: bytes) -> str | None:
             ['tesseract', 'stdin', 'stdout', '--psm', '7', '-c', 'tessedit_char_whitelist=0123456789'],
             input=prepared.getvalue(), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
             timeout=3, check=True,
+            env={**os.environ, "OMP_THREAD_LIMIT": "1"},
         )
     finally:
         _ocr_slots.release()
